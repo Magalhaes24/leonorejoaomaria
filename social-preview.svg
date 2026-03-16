@@ -1,0 +1,10 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#F7F2EB"/>
+  <rect x="40" y="40" width="1120" height="550" rx="28" fill="#FCFAF6" stroke="#D8C3AB" stroke-width="2"/>
+  <path d="M98 314C186 240 270 214 350 214C448 214 506 282 600 282C694 282 752 214 850 214C930 214 1014 240 1102 314" stroke="#C8A27A" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 10"/>
+  <text x="600" y="208" text-anchor="middle" fill="#6B5847" font-family="Manrope, Arial, sans-serif" font-size="18" letter-spacing="7">CASAMENTO</text>
+  <text x="600" y="292" text-anchor="middle" fill="#23352E" font-family="Georgia, 'Times New Roman', serif" font-size="66">Leonor e João Maria</text>
+  <text x="600" y="384" text-anchor="middle" fill="#6B5847" font-family="Manrope, Arial, sans-serif" font-size="24" letter-spacing="2">Igreja · Igreja Matriz da Azambuja</text>
+  <text x="600" y="430" text-anchor="middle" fill="#6B5847" font-family="Manrope, Arial, sans-serif" font-size="24" letter-spacing="2">Cocktail · Herdade do Crescido</text>
+  <circle cx="600" cy="503" r="4.5" fill="#C8A27A"/>
+</svg>
