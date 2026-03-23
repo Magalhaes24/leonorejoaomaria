@@ -2,6 +2,7 @@ import { motion, useMotionValueEvent, useScroll } from 'framer-motion'
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { MOTION_EASE, motionProps } from '../lib/motion'
+import { copy } from '../lib/i18n'
 
 export default function Navbar() {
   const location = useLocation()
@@ -28,7 +29,7 @@ export default function Navbar() {
           to="/"
           className="font-serif text-base sm:text-xl tracking-[0.14em] sm:tracking-[0.18em] text-gray-900 hover:text-accent transition-colors duration-500 shrink-0"
         >
-          LJM
+          {copy.navbar.brand}
         </Link>
 
         <nav className="flex items-center gap-4 sm:gap-8 min-w-0">
@@ -38,15 +39,15 @@ export default function Navbar() {
               location.pathname === '/' ? 'text-accent after:scale-x-100' : 'text-gray-500 hover:text-gray-900 after:scale-x-0 hover:after:scale-x-100'
             }`}
           >
-            Início
+            {copy.navbar.home}
           </Link>
           <Link
-            to="/gifts"
+            to="/lista"
             className={`relative text-xs sm:text-sm font-medium tracking-wide transition-colors duration-300 after:absolute after:left-0 after:-bottom-1.5 after:h-px after:w-full after:origin-left after:bg-current after:transition-transform after:duration-500 ${
-              location.pathname === '/gifts' ? 'text-accent after:scale-x-100' : 'text-gray-500 hover:text-gray-900 after:scale-x-0 hover:after:scale-x-100'
+              location.pathname === '/lista' ? 'text-accent after:scale-x-100' : 'text-gray-500 hover:text-gray-900 after:scale-x-0 hover:after:scale-x-100'
             }`}
           >
-            Lista de Casamento
+            {copy.navbar.list}
           </Link>
         </nav>
       </div>

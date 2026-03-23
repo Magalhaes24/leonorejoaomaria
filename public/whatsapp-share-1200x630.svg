@@ -1,0 +1,50 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600&amp;display=swap');
+    </style>
+    <pattern id="diag-w" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#d4ddd8" stroke-width="0.5" opacity="0.4"/>
+    </pattern>
+    <linearGradient id="fl-w" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="20%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="fr-w" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="80%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.85"/>
+    </linearGradient>
+    <linearGradient id="al-w" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2D6B5E" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#2D6B5E" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#2D6B5E" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="av-w" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2D6B5E" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#2D6B5E" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#2D6B5E" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="#f7f9f8"/>
+  <rect width="1200" height="630" fill="url(#diag-w)"/>
+  <rect width="1200" height="630" fill="url(#fl-w)"/>
+  <rect width="1200" height="630" fill="url(#fr-w)"/>
+
+  <text x="600" y="250" text-anchor="middle" font-family="'Manrope', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="100" font-weight="300" fill="#2D6B5E">Leonor</text>
+  <text x="600" y="310" text-anchor="middle" font-family="'Manrope', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="40" font-weight="200" fill="#5a9e8f">e</text>
+  <text x="600" y="400" text-anchor="middle" font-family="'Manrope', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="100" font-weight="300" fill="#2D6B5E">João Maria</text>
+
+  <line x1="430" y1="450" x2="770" y2="450" stroke="url(#al-w)" stroke-width="1"/>
+
+  <!-- Church -->
+  <text x="420" y="520" text-anchor="middle" font-family="'Manrope', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="14" font-weight="400" fill="#5a9e8f" letter-spacing="5">IGREJA</text>
+  <text x="420" y="555" text-anchor="middle" font-family="'Manrope', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="21" font-weight="300" fill="#2D6B5E">Igreja Matriz da Azambuja</text>
+
+  <!-- Vertical divider -->
+  <line x1="600" y1="500" x2="600" y2="570" stroke="url(#av-w)" stroke-width="0.5"/>
+
+  <!-- Cocktail -->
+  <text x="780" y="520" text-anchor="middle" font-family="'Manrope', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="14" font-weight="400" fill="#5a9e8f" letter-spacing="5">COCKTAIL</text>
+  <text x="780" y="555" text-anchor="middle" font-family="'Manrope', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="21" font-weight="300" fill="#2D6B5E">Herdade do Crescido</text>
+</svg>

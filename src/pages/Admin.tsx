@@ -1,12 +1,11 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { supabase, type Gift } from '../lib/supabase'
+import { supabase, type Alergia, type Boleia, type Gift } from '../lib/supabase'
 import { MOTION_EASE, motionProps, presenceProps } from '../lib/motion'
+import { copy } from '../lib/i18n'
 
 const ADMIN_USER_ID = '0b9c93dd-17a2-4943-befd-968943ba432f'
-const CATEGORIES = ['Cozinha', 'Quarto', 'Sala', 'Experiencia', 'Tecnologia', 'Outro']
-
 interface ContribRow {
   id: string
   gift_id: string
@@ -18,6 +17,24 @@ interface ContribRow {
 interface GiftRow extends Gift {
   total_contributed: number
   contributions: ContribRow[]
+}
+
+interface AlergiaRow extends Alergia {
+  id: string
+  created_at: string
+}
+
+interface BoleiaRow extends Boleia {
+  id: string
+  created_at: string
+}
+
+interface GiftInsertRow {
+  name: string
+  description: string | null
+  price: number
+  category: null
+  image_url: string | null
 }
 
 const formatCurrency = (value: number) =>
@@ -48,7 +65,7 @@ const loadImageElement = (file: File) =>
     }
     image.onerror = () => {
       URL.revokeObjectURL(objectUrl)
-      reject(new Error('Nao foi possivel ler a imagem.'))
+      reject(new Error(copy.admin.errors.imageRead))
     }
     image.src = objectUrl
   })
@@ -70,7 +87,7 @@ const readFileAsDataUrl = async (file: File) => {
   const context = canvas.getContext('2d')
 
   if (!context) {
-    throw new Error('Nao foi possivel processar a imagem.')
+    throw new Error(copy.admin.errors.imageProcess)
   }
 
   canvas.width = width
@@ -90,17 +107,143 @@ const readFileAsDataUrl = async (file: File) => {
   }
 
   if (approximateBase64Bytes(best) > MAX_IMAGE_BYTES) {
-    throw new Error('A imagem e demasiado grande. Usa uma imagem mais pequena.')
+    throw new Error(copy.admin.errors.imageTooLarge)
   }
 
   return best
 }
 
 const formatSupabaseError = (message?: string) => {
-  if (!message) return 'Erro ao guardar. Tenta novamente.'
-  if (message.toLowerCase().includes('row-level security')) return 'Esta conta nao tem permissao para guardar presentes.'
-  if (message.toLowerCase().includes('payload')) return 'A imagem e demasiado grande. Usa uma imagem mais pequena.'
+  if (!message) return copy.admin.errors.saveError
+  if (message.toLowerCase().includes('row-level security')) return copy.admin.errors.noPermissionGift
+  if (message.toLowerCase().includes('payload')) return copy.admin.errors.imageTooLarge
   return message
+}
+
+const CSV_TEMPLATE = [
+  ['name', 'description', 'price', 'image_url'],
+  ['Pratos Costa Nova', 'Servico de jantar para 12 pessoas', '120', 'https://exemplo.com/pratos.jpg'],
+  ['Toalhas de banho', '', '45', ''],
+]
+  .map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(','))
+  .join('\n')
+
+const normalizeNullableCsvValue = (value: string | undefined) => {
+  const trimmed = (value ?? '').trim()
+  if (!trimmed || trimmed.toLowerCase() === 'null') return null
+  return trimmed
+}
+
+const parseCsv = (content: string) => {
+  const normalized = content.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  const rows: string[][] = []
+  let currentCell = ''
+  let currentRow: string[] = []
+  let inQuotes = false
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const character = normalized[index]
+    const nextCharacter = normalized[index + 1]
+
+    if (character === '"') {
+      if (inQuotes && nextCharacter === '"') {
+        currentCell += '"'
+        index += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+
+    if (character === ',' && !inQuotes) {
+      currentRow.push(currentCell)
+      currentCell = ''
+      continue
+    }
+
+    if (character === '\n' && !inQuotes) {
+      currentRow.push(currentCell)
+      if (currentRow.some((cell) => cell.trim() !== '')) {
+        rows.push(currentRow)
+      }
+      currentRow = []
+      currentCell = ''
+      continue
+    }
+
+    currentCell += character
+  }
+
+  if (currentCell !== '' || currentRow.length > 0) {
+    currentRow.push(currentCell)
+    if (currentRow.some((cell) => cell.trim() !== '')) {
+      rows.push(currentRow)
+    }
+  }
+
+  return rows
+}
+
+const parseGiftCsv = (content: string) => {
+  const rows = parseCsv(content)
+
+  if (rows.length < 2) {
+    throw new Error(copy.admin.errors.csvHeaderRequired)
+  }
+
+  const header = rows[0].map((cell) => cell.trim().toLowerCase())
+  const requiredHeaders = ['name', 'description', 'price', 'image_url']
+  const missingHeaders = requiredHeaders.filter((column) => !header.includes(column))
+
+  if (missingHeaders.length > 0) {
+    throw new Error(copy.admin.errors.csvMissingHeaders(missingHeaders))
+  }
+
+  const getValue = (row: string[], column: string) => row[header.indexOf(column)] ?? ''
+
+  return rows.slice(1).map((row, index) => {
+    const rowNumber = index + 2
+    const name = normalizeNullableCsvValue(getValue(row, 'name'))
+    const priceRaw = normalizeNullableCsvValue(getValue(row, 'price'))
+    const description = normalizeNullableCsvValue(getValue(row, 'description'))
+    const imageUrl = normalizeNullableCsvValue(getValue(row, 'image_url'))
+
+    if (!name) {
+      throw new Error(copy.admin.errors.csvNameRequired(rowNumber))
+    }
+
+    if (!priceRaw) {
+      throw new Error(copy.admin.errors.csvPriceRequired(rowNumber))
+    }
+
+    const price = Number.parseFloat(priceRaw.replace(',', '.'))
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new Error(copy.admin.errors.csvPriceInvalid(rowNumber))
+    }
+
+    return {
+      name,
+      description,
+      price,
+      category: null,
+      image_url: imageUrl,
+    } satisfies GiftInsertRow
+  })
+}
+
+const decodeCsvBuffer = (buffer: ArrayBuffer) => {
+  const bytes = new Uint8Array(buffer)
+
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes)
+  }
+}
+
+const readCsvFile = async (file: File) => {
+  const buffer = await file.arrayBuffer()
+  return decodeCsvBuffer(buffer)
 }
 
 function StatCard({
@@ -132,7 +275,7 @@ function LoginForm() {
     setLoading(true)
     setError('')
     const { error: err } = await supabase.auth.signInWithPassword({ email, password })
-    if (err) setError('Credenciais invalidas.')
+    if (err) setError(copy.admin.login.invalidCredentials)
     setLoading(false)
   }
 
@@ -147,16 +290,16 @@ function LoginForm() {
         className="w-full max-w-md overflow-hidden rounded-3xl border border-accent-mid/30 bg-white p-10 shadow-xl shadow-forest/10"
       >
         <div className="mb-8">
-          <p className="text-[11px] uppercase tracking-[0.3em] text-accent-dark/70">Painel privado</p>
-          <p className="mt-3 font-serif text-4xl text-forest">Admin</p>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-accent-dark/70">{copy.admin.login.titleTag}</p>
+          <p className="mt-3 font-serif text-4xl text-forest">{copy.admin.login.title}</p>
           <p className="mt-3 text-sm leading-6 text-gray-500">
-            Entre com a conta autorizada para gerir a lista de presentes e acompanhar as contribuicoes.
+            {copy.admin.login.description}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">Email</label>
+            <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">{copy.admin.login.emailLabel}</label>
             <input
               type="email"
               value={email}
@@ -166,7 +309,7 @@ function LoginForm() {
             />
           </div>
           <div>
-            <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">Password</label>
+            <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">{copy.admin.login.passwordLabel}</label>
             <input
               type="password"
               value={password}
@@ -181,7 +324,7 @@ function LoginForm() {
             disabled={loading}
             className="w-full rounded-xl bg-forest py-3 text-sm font-medium text-white transition-all hover:bg-accent-dark disabled:opacity-50"
           >
-            {loading ? 'A entrar...' : 'Entrar'}
+            {loading ? copy.admin.login.loading : copy.admin.login.submit}
           </button>
         </form>
       </motion.div>
@@ -196,16 +339,19 @@ function GiftFormModal({
 }: {
   gift?: Gift
   onClose: () => void
-  onSaved: (g: Gift) => void
+  onSaved: (gifts: Gift[]) => void
 }) {
   const [name, setName] = useState(gift?.name ?? '')
   const [description, setDescription] = useState(gift?.description ?? '')
   const [price, setPrice] = useState(gift?.price?.toString() ?? '')
-  const [category, setCategory] = useState(gift?.category ?? 'Outro')
   const [imageUrl, setImageUrl] = useState(gift?.image_url ?? '')
   const [imageSource, setImageSource] = useState<'url' | 'upload'>(gift?.image_url?.startsWith('data:') ? 'upload' : 'url')
+  const [mode, setMode] = useState<'single' | 'csv'>('single')
   const [uploadingImage, setUploadingImage] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [csvFileName, setCsvFileName] = useState('')
+  const [csvRows, setCsvRows] = useState<GiftInsertRow[]>([])
+  const [csvSummary, setCsvSummary] = useState('')
   const [error, setError] = useState('')
 
   const isEdit = !!gift
@@ -215,7 +361,7 @@ function GiftFormModal({
     if (!file) return
 
     if (!file.type.startsWith('image/')) {
-      setError('Seleciona um ficheiro de imagem valido.')
+      setError(copy.admin.giftForm.fields.invalidImage)
       e.target.value = ''
       return
     }
@@ -226,7 +372,7 @@ function GiftFormModal({
       const dataUrl = await readFileAsDataUrl(file)
       setImageUrl(dataUrl)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nao foi possivel carregar a imagem.')
+      setError(err instanceof Error ? err.message : copy.admin.giftForm.fields.loadImageError)
     } finally {
       setUploadingImage(false)
     }
@@ -242,7 +388,7 @@ function GiftFormModal({
       name: name.trim(),
       description: description.trim(),
       price: parseFloat(price),
-      category,
+      category: null,
       image_url: imageUrl.trim() || null,
     }
 
@@ -256,7 +402,62 @@ function GiftFormModal({
       return
     }
 
-    onSaved(result.data as Gift)
+    onSaved([result.data as Gift])
+    onClose()
+  }
+
+  const handleCsvFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      setError('')
+      const content = await readCsvFile(file)
+      const parsedRows = parseGiftCsv(content)
+      setCsvRows(parsedRows)
+      setCsvFileName(file.name)
+      setCsvSummary(`${parsedRows.length} presentes prontos a importar.`)
+    } catch (err) {
+      setCsvRows([])
+      setCsvFileName('')
+      setCsvSummary('')
+      setError(err instanceof Error ? err.message : copy.admin.errors.csvRead)
+    } finally {
+      e.target.value = ''
+    }
+  }
+
+  const handleDownloadTemplate = () => {
+    const blob = new Blob(['\uFEFF', CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'template-presentes.csv'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+  const handleBulkSubmit = async () => {
+    if (csvRows.length === 0) {
+      setError(copy.admin.giftForm.import.requiredRows)
+      return
+    }
+
+    setLoading(true)
+    setError('')
+
+    const result = await supabase.from('gifts').insert(csvRows).select()
+
+    if (result.error) {
+      setError(formatSupabaseError(result.error.message))
+      setLoading(false)
+      return
+    }
+
+    setLoading(false)
+    onSaved((result.data ?? []) as Gift[])
     onClose()
   }
 
@@ -265,7 +466,7 @@ function GiftFormModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-forest/35 p-6 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-end md:items-center justify-center overflow-y-auto bg-forest/35 p-0 md:p-6 backdrop-blur-md"
       onClick={onClose}
     >
       <motion.div
@@ -273,69 +474,149 @@ function GiftFormModal({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 12, scale: 0.98 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-accent-mid/20 bg-white p-8 shadow-2xl shadow-forest/20 md:rounded-3xl"
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-accent-mid/20 bg-white p-5 shadow-2xl shadow-forest/20 md:rounded-3xl md:p-8"
         onClick={(e) => e.stopPropagation()}
       >
         <p className="text-[11px] uppercase tracking-[0.28em] text-accent-dark/70">
-          {isEdit ? 'Editar presente' : 'Novo presente'}
+          {isEdit ? copy.admin.giftForm.editTitle : copy.admin.giftForm.newTitle}
         </p>
         <h2 className="mt-3 font-serif text-3xl text-forest">
-          {isEdit ? gift.name : 'Adicionar a lista'}
+          {isEdit ? gift.name : copy.admin.giftForm.addTitle}
         </h2>
 
+        {!isEdit && (
+          <div className="mt-8 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('single')
+                setError('')
+              }}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                mode === 'single'
+                  ? 'bg-forest text-white'
+                  : 'border border-accent-mid/40 bg-white text-accent-dark hover:border-accent'
+              }`}
+            >
+              {copy.admin.giftForm.mode.manual}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('csv')
+                setError('')
+              }}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                mode === 'csv'
+                  ? 'bg-forest text-white'
+                  : 'border border-accent-mid/40 bg-white text-accent-dark hover:border-accent'
+              }`}
+            >
+              {copy.admin.giftForm.mode.csv}
+            </button>
+          </div>
+        )}
+
+        {(!isEdit && mode === 'csv') ? (
+          <div className="mt-8 space-y-5">
+            <div className="rounded-[28px] border border-accent-mid/30 bg-accent-light/20 p-5">
+              <p className="text-xs uppercase tracking-[0.22em] text-accent-dark/70">{copy.admin.giftForm.import.tag}</p>
+              <p className="mt-3 text-sm leading-6 text-gray-500">
+                {copy.admin.giftForm.import.description}
+              </p>
+              <button
+                type="button"
+                onClick={handleDownloadTemplate}
+                className="mt-4 rounded-full border border-accent-mid/40 bg-white px-4 py-2 text-sm font-medium text-accent-dark transition-colors hover:border-accent hover:text-forest"
+              >
+                {copy.admin.giftForm.import.downloadTemplate}
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-dashed border-accent-mid/50 bg-accent-light/25 p-4">
+              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-accent-mid/30 bg-white px-4 py-8 text-center transition-colors hover:border-accent hover:bg-accent-light/30">
+                <span className="text-sm font-medium text-forest">{copy.admin.giftForm.import.chooseCsv}</span>
+                <span className="text-xs text-gray-500">{copy.admin.giftForm.import.accepted}</span>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleCsvFileChange}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {csvFileName && (
+              <div className="rounded-2xl border border-accent-mid/30 bg-white px-4 py-4">
+                <p className="text-sm font-medium text-forest">{csvFileName}</p>
+                <p className="mt-1 text-sm text-gray-500">{csvSummary}</p>
+                <p className="mt-2 text-xs uppercase tracking-[0.18em] text-gray-300">
+                  {copy.admin.giftForm.import.validRows(csvRows.length)}
+                </p>
+              </div>
+            )}
+
+            {error && <p className="text-xs text-red-500">{error}</p>}
+
+            <div className="flex flex-col gap-3 pt-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-xl bg-accent-light py-3 text-sm font-medium text-accent-dark transition-colors hover:bg-accent-mid/30"
+              >
+                {copy.admin.actions.cancel}
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkSubmit}
+                disabled={loading || csvRows.length === 0}
+                className="flex-1 rounded-xl bg-forest py-3 text-sm font-medium text-white transition-all hover:bg-accent-dark disabled:opacity-50"
+              >
+                {loading ? copy.admin.giftForm.import.loading : copy.admin.giftForm.import.import}
+              </button>
+            </div>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
           <div>
-            <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">Nome</label>
+            <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">{copy.admin.giftForm.fields.name}</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              placeholder="Ex: Robot de cozinha"
+              placeholder={copy.admin.giftForm.fields.namePlaceholder}
               className="w-full rounded-xl border border-accent-mid/40 bg-accent-light/40 px-4 py-3 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/10"
             />
           </div>
 
           <div>
-            <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">Descricao</label>
+            <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">{copy.admin.giftForm.fields.description}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              placeholder="Breve descricao..."
+              placeholder={copy.admin.giftForm.fields.descriptionPlaceholder}
               className="w-full resize-none rounded-xl border border-accent-mid/40 bg-accent-light/40 px-4 py-3 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/10"
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">Preco (EUR)</label>
-              <input
-                type="number"
-                min="1"
-                step="0.01"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                required
-                placeholder="0.00"
-                className="w-full rounded-xl border border-accent-mid/40 bg-accent-light/40 px-4 py-3 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/10"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">Categoria</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-xl border border-accent-mid/40 bg-accent-light/40 px-4 py-3 text-sm outline-none transition-all focus:border-accent"
-              >
-                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </div>
+          <div>
+            <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">{copy.admin.giftForm.fields.price}</label>
+            <input
+              type="number"
+              min="1"
+              step="0.01"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              required
+              placeholder={copy.admin.giftForm.fields.pricePlaceholder}
+              className="w-full rounded-xl border border-accent-mid/40 bg-accent-light/40 px-4 py-3 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/10"
+            />
           </div>
 
           <div className="space-y-3">
             <div>
-              <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">Imagem</label>
+              <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-gray-500">{copy.admin.giftForm.fields.image}</label>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -349,7 +630,7 @@ function GiftFormModal({
                       : 'border border-accent-mid/40 bg-white text-accent-dark hover:border-accent'
                   }`}
                 >
-                  URL
+                  {copy.admin.giftForm.fields.imageUrl}
                 </button>
                 <button
                   type="button"
@@ -360,7 +641,7 @@ function GiftFormModal({
                       : 'border border-accent-mid/40 bg-white text-accent-dark hover:border-accent'
                   }`}
                 >
-                  Upload
+                  {copy.admin.giftForm.fields.upload}
                 </button>
               </div>
             </div>
@@ -369,16 +650,16 @@ function GiftFormModal({
               <input
                 value={imageUrl.startsWith('data:') ? '' : imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://..."
+                placeholder={copy.admin.giftForm.fields.imageUrlPlaceholder}
                 className="w-full rounded-xl border border-accent-mid/40 bg-accent-light/40 px-4 py-3 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/10"
               />
             ) : (
               <div className="rounded-2xl border border-dashed border-accent-mid/50 bg-accent-light/25 p-4">
                 <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-accent-mid/30 bg-white px-4 py-6 text-center transition-colors hover:border-accent hover:bg-accent-light/30">
                   <span className="text-sm font-medium text-forest">
-                    {uploadingImage ? 'A carregar imagem...' : 'Escolher imagem'}
+                    {uploadingImage ? copy.admin.giftForm.fields.uploadLoading : copy.admin.giftForm.fields.uploadChoose}
                   </span>
-                  <span className="text-xs text-gray-500">PNG, JPG, WEBP ou semelhante</span>
+                  <span className="text-xs text-gray-500">{copy.admin.giftForm.fields.uploadAccepted}</span>
                   <input
                     type="file"
                     accept="image/*"
@@ -392,7 +673,7 @@ function GiftFormModal({
             {imageUrl && (
               <div className="overflow-hidden rounded-2xl border border-accent-mid/30 bg-white">
                 <div className="aspect-[16/9] bg-accent-light/30">
-                  <img src={imageUrl} alt="Preview da imagem" className="h-full w-full object-cover" />
+                  <img src={imageUrl} alt={copy.admin.giftForm.fields.previewAlt} className="h-full w-full object-cover" />
                 </div>
                 <div className="flex justify-end border-t border-accent-mid/20 px-3 py-2">
                   <button
@@ -400,7 +681,7 @@ function GiftFormModal({
                     onClick={() => setImageUrl('')}
                     className="text-xs font-medium text-accent-dark transition-colors hover:text-forest"
                   >
-                    Remover imagem
+                    {copy.admin.giftForm.fields.removeImage}
                   </button>
                 </div>
               </div>
@@ -415,35 +696,65 @@ function GiftFormModal({
               onClick={onClose}
               className="flex-1 rounded-xl bg-accent-light py-3 text-sm font-medium text-accent-dark transition-colors hover:bg-accent-mid/30"
             >
-              Cancelar
+              {copy.admin.actions.cancel}
             </button>
             <button
               type="submit"
               disabled={loading}
               className="flex-1 rounded-xl bg-forest py-3 text-sm font-medium text-white transition-all hover:bg-accent-dark disabled:opacity-50"
             >
-              {loading ? 'A guardar...' : isEdit ? 'Guardar' : 'Adicionar'}
+              {loading ? copy.admin.giftForm.submit.loading : isEdit ? copy.admin.giftForm.submit.update : copy.admin.giftForm.submit.create}
             </button>
           </div>
         </form>
+        )}
       </motion.div>
     </motion.div>
   )
 }
 
 function AdminPanel({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<'gifts' | 'contributions'>('gifts')
+  const [tab, setTab] = useState<'gifts' | 'contributions' | 'alergias' | 'boleias'>('gifts')
   const [gifts, setGifts] = useState<GiftRow[]>([])
+  const [alergias, setAlergias] = useState<AlergiaRow[]>([])
+  const [boleias, setBoleias] = useState<BoleiaRow[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editGift, setEditGift] = useState<Gift | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [deleteContributionId, setDeleteContributionId] = useState<string | null>(null)
+  const [deletingContribution, setDeletingContribution] = useState(false)
+  const [editContributionId, setEditContributionId] = useState<string | null>(null)
+  const [editContributionName, setEditContributionName] = useState('')
+  const [editContributionAmount, setEditContributionAmount] = useState('')
+  const [savingContribution, setSavingContribution] = useState(false)
+  const [deleteAlergiaId, setDeleteAlergiaId] = useState<string | null>(null)
+  const [deletingAlergia, setDeletingAlergia] = useState(false)
+  const [editAlergiaId, setEditAlergiaId] = useState<string | null>(null)
+  const [editAlergiaNome, setEditAlergiaNome] = useState('')
+  const [editAlergiaRestricoes, setEditAlergiaRestricoes] = useState('')
+  const [editAlergiaNotas, setEditAlergiaNotas] = useState('')
+  const [savingAlergia, setSavingAlergia] = useState(false)
+  const [deleteBoleiaId, setDeleteBoleiaId] = useState<string | null>(null)
+  const [deletingBoleia, setDeletingBoleia] = useState(false)
+  const [editBoleiaId, setEditBoleiaId] = useState<string | null>(null)
+  const [editBoleiaNome, setEditBoleiaNome] = useState('')
+  const [editBoleiaTelefone, setEditBoleiaTelefone] = useState('')
+  const [editBoleiaLugares, setEditBoleiaLugares] = useState('')
+  const [editBoleiaSentido, setEditBoleiaSentido] = useState('')
+  const [editBoleiaNotas, setEditBoleiaNotas] = useState('')
+  const [savingBoleia, setSavingBoleia] = useState(false)
+  const [actionError, setActionError] = useState('')
 
-  const loadData = async () => {
-    const [giftsRes, contribsRes] = await Promise.all([
+  const loadData = async (showLoader = false) => {
+    if (showLoader) setLoading(true)
+
+    const [giftsRes, contribsRes, alergiasRes, boleiasRes] = await Promise.all([
       supabase.from('gifts').select('*').order('created_at', { ascending: false }),
       supabase.from('gift_contributions').select('*').order('created_at', { ascending: false }),
+      supabase.from('alergias').select('*').order('created_at', { ascending: false }),
+      supabase.from('boleias').select('*').order('created_at', { ascending: false }),
     ])
 
     if (!giftsRes.error && giftsRes.data) {
@@ -459,27 +770,297 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
       setGifts(rows)
     }
 
+    if (!alergiasRes.error && alergiasRes.data) {
+      setAlergias(alergiasRes.data as AlergiaRow[])
+    }
+
+    if (!boleiasRes.error && boleiasRes.data) {
+      setBoleias(boleiasRes.data as BoleiaRow[])
+    }
+
     setLoading(false)
   }
 
   useEffect(() => {
-    loadData()
+    loadData(true)
+
+    const intervalId = window.setInterval(() => {
+      loadData()
+    }, 10000)
+
+    return () => window.clearInterval(intervalId)
   }, [])
 
   const handleDelete = async () => {
     if (!deleteId) return
     setDeleting(true)
-    await supabase.from('gifts').delete().eq('id', deleteId)
-    setGifts((prev) => prev.filter((g) => g.id !== deleteId))
-    setDeleteId(null)
+    setActionError('')
+    const currentDeleteId = deleteId
+    const { error } = await supabase.from('gifts').delete().eq('id', currentDeleteId)
+    if (error) {
+      setActionError(error.message)
+    } else {
+      setGifts((prev) => prev.filter((g) => g.id !== currentDeleteId))
+      setDeleteId(null)
+    }
     setDeleting(false)
   }
 
-  const handleSaved = (saved: Gift) => {
+  const handleDeleteContribution = async (giftId: string) => {
+    if (!deleteContributionId) return
+    setDeletingContribution(true)
+    setActionError('')
+    const currentDeleteId = deleteContributionId
+    const { error } = await supabase.from('gift_contributions').delete().eq('id', currentDeleteId)
+    if (error) {
+      setActionError(error.message)
+    } else {
+      setGifts((prev) =>
+        prev.map((gift) => {
+          if (gift.id !== giftId) return gift
+
+          const contributions = gift.contributions.filter((contribution) => contribution.id !== currentDeleteId)
+          const totalContributed = contributions.reduce((sum, contribution) => sum + Number(contribution.amount), 0)
+
+          return {
+            ...gift,
+            contributions,
+            total_contributed: totalContributed,
+          }
+        }),
+      )
+      setDeleteContributionId(null)
+    }
+    setDeletingContribution(false)
+  }
+
+  const handleStartEditContribution = (contribution: ContribRow) => {
+    setDeleteContributionId(null)
+    setEditContributionId(contribution.id)
+    setEditContributionName(contribution.contributor_name)
+    setEditContributionAmount(String(Number(contribution.amount)))
+  }
+
+  const handleCancelEditContribution = () => {
+    setEditContributionId(null)
+    setEditContributionName('')
+    setEditContributionAmount('')
+  }
+
+  const handleSaveContribution = async (giftId: string) => {
+    if (!editContributionId || !editContributionName.trim() || Number(editContributionAmount) <= 0) return
+
+    setSavingContribution(true)
+    setActionError('')
+    const updatedAmount = Number(editContributionAmount)
+    const updatedName = editContributionName.trim()
+
+    const { error } = await supabase
+      .from('gift_contributions')
+      .update({
+        contributor_name: updatedName,
+        amount: updatedAmount,
+      })
+      .eq('id', editContributionId)
+
+    if (!error) {
+      setGifts((prev) =>
+        prev.map((gift) => {
+          if (gift.id !== giftId) return gift
+
+          const contributions = gift.contributions.map((contribution) =>
+            contribution.id === editContributionId
+              ? {
+                  ...contribution,
+                  contributor_name: updatedName,
+                  amount: updatedAmount,
+                }
+              : contribution,
+          )
+
+          return {
+            ...gift,
+            contributions,
+            total_contributed: contributions.reduce((sum, contribution) => sum + Number(contribution.amount), 0),
+          }
+        }),
+      )
+      handleCancelEditContribution()
+    } else {
+      setActionError(error.message)
+    }
+
+    setSavingContribution(false)
+  }
+
+  const handleStartEditAlergia = (entry: AlergiaRow) => {
+    setDeleteAlergiaId(null)
+    setEditAlergiaId(entry.id)
+    setEditAlergiaNome(entry.nome)
+    setEditAlergiaRestricoes(entry.restricoes.join(', '))
+    setEditAlergiaNotas(entry.notas ?? '')
+  }
+
+  const handleCancelEditAlergia = () => {
+    setEditAlergiaId(null)
+    setEditAlergiaNome('')
+    setEditAlergiaRestricoes('')
+    setEditAlergiaNotas('')
+  }
+
+  const handleSaveAlergia = async () => {
+    if (!editAlergiaId || !editAlergiaNome.trim()) return
+
+    const restricoes = editAlergiaRestricoes
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+
+    setSavingAlergia(true)
+    setActionError('')
+    const updatedNome = editAlergiaNome.trim()
+    const updatedNotas = editAlergiaNotas.trim() || null
+
+    const { error } = await supabase
+      .from('alergias')
+      .update({
+        nome: updatedNome,
+        restricoes,
+        notas: updatedNotas,
+      })
+      .eq('id', editAlergiaId)
+
+    if (!error) {
+      setAlergias((prev) =>
+        prev.map((entry) =>
+          entry.id === editAlergiaId
+            ? {
+                ...entry,
+                nome: updatedNome,
+                restricoes,
+                notas: updatedNotas,
+              }
+            : entry,
+        ),
+      )
+      handleCancelEditAlergia()
+    } else {
+      setActionError(error.message)
+    }
+
+    setSavingAlergia(false)
+  }
+
+  const handleDeleteAlergia = async () => {
+    if (!deleteAlergiaId) return
+    setDeletingAlergia(true)
+    setActionError('')
+    const currentDeleteId = deleteAlergiaId
+    const { error } = await supabase.from('alergias').delete().eq('id', currentDeleteId)
+    if (!error) {
+      setAlergias((prev) => prev.filter((entry) => entry.id !== currentDeleteId))
+      setDeleteAlergiaId(null)
+    } else {
+      setActionError(error.message)
+    }
+    setDeletingAlergia(false)
+  }
+
+  const handleStartEditBoleia = (entry: BoleiaRow) => {
+    setDeleteBoleiaId(null)
+    setEditBoleiaId(entry.id)
+    setEditBoleiaNome(entry.nome)
+    setEditBoleiaTelefone(entry.telefone ?? '')
+    setEditBoleiaLugares(String(entry.lugares ?? 1))
+    setEditBoleiaSentido(entry.sentido)
+    setEditBoleiaNotas(entry.notas ?? '')
+  }
+
+  const handleCancelEditBoleia = () => {
+    setEditBoleiaId(null)
+    setEditBoleiaNome('')
+    setEditBoleiaTelefone('')
+    setEditBoleiaLugares('')
+    setEditBoleiaSentido('')
+    setEditBoleiaNotas('')
+  }
+
+  const handleSaveBoleia = async () => {
+    if (!editBoleiaId || !editBoleiaNome.trim() || !editBoleiaSentido.trim() || Number(editBoleiaLugares) < 1) return
+
+    setSavingBoleia(true)
+    setActionError('')
+    const updatedNome = editBoleiaNome.trim()
+    const updatedTelefone = editBoleiaTelefone.trim() || null
+    const updatedLugares = Number(editBoleiaLugares)
+    const updatedSentido = editBoleiaSentido.trim()
+    const updatedNotas = editBoleiaNotas.trim() || null
+
+    const { error } = await supabase
+      .from('boleias')
+      .update({
+        nome: updatedNome,
+        telefone: updatedTelefone,
+        lugares: updatedLugares,
+        sentido: updatedSentido,
+        notas: updatedNotas,
+      })
+      .eq('id', editBoleiaId)
+
+    if (!error) {
+      setBoleias((prev) =>
+        prev.map((entry) =>
+          entry.id === editBoleiaId
+            ? {
+                ...entry,
+                nome: updatedNome,
+                telefone: updatedTelefone,
+                lugares: updatedLugares,
+                sentido: updatedSentido,
+                notas: updatedNotas,
+              }
+            : entry,
+        ),
+      )
+      handleCancelEditBoleia()
+    } else {
+      setActionError(error.message)
+    }
+
+    setSavingBoleia(false)
+  }
+
+  const handleDeleteBoleia = async () => {
+    if (!deleteBoleiaId) return
+    setDeletingBoleia(true)
+    setActionError('')
+    const currentDeleteId = deleteBoleiaId
+    const { error } = await supabase.from('boleias').delete().eq('id', currentDeleteId)
+    if (!error) {
+      setBoleias((prev) => prev.filter((entry) => entry.id !== currentDeleteId))
+      setDeleteBoleiaId(null)
+    } else {
+      setActionError(error.message)
+    }
+    setDeletingBoleia(false)
+  }
+
+  const handleSaved = (savedGifts: Gift[]) => {
     setGifts((prev) => {
-      const exists = prev.find((g) => g.id === saved.id)
-      if (exists) return prev.map((g) => g.id === saved.id ? { ...g, ...saved } : g)
-      return [{ ...saved, total_contributed: 0, contributions: [] }, ...prev]
+      let next = [...prev]
+
+      for (const saved of savedGifts) {
+        const exists = next.find((g) => g.id === saved.id)
+
+        if (exists) {
+          next = next.map((g) => g.id === saved.id ? { ...g, ...saved } : g)
+          continue
+        }
+
+        next = [{ ...saved, total_contributed: 0, contributions: [] }, ...next]
+      }
+
+      return next
     })
   }
 
@@ -489,6 +1070,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
   const pendingGifts = Math.max(gifts.length - fullyFunded, 0)
   const averageContribution = totalContributions > 0 ? totalContributed / totalContributions : 0
   const giftsWithContributions = gifts.filter((g) => g.contributions.length > 0)
+  const totalSeatsOffered = boleias.reduce((sum, boleia) => sum + Number(boleia.lugares ?? 0), 0)
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
@@ -496,16 +1078,16 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
-              <p className="text-xs font-medium uppercase tracking-widest text-accent">Painel de administracao</p>
-              <h1 className="mt-4 font-serif text-5xl leading-none text-forest md:text-7xl">Admin</h1>
+              <p className="text-xs font-medium uppercase tracking-widest text-accent">{copy.admin.dashboard.tag}</p>
+              <h1 className="mt-4 font-serif text-5xl leading-none text-forest md:text-7xl">{copy.admin.dashboard.title}</h1>
               <p className="mt-6 max-w-xl text-sm leading-relaxed text-gray-500 sm:text-base">
-                Gere presentes, acompanhe a evolucao das contribuicoes e mantenha a lista clara sem sair desta pagina.
+                {copy.admin.dashboard.description}
               </p>
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="rounded-full border border-accent-mid/40 px-4 py-2 text-xs uppercase tracking-widest text-accent-dark">
-                {gifts.length} presentes registados
+                {copy.admin.dashboard.giftsCount(gifts.length)}
               </div>
               <button
                 onClick={onLogout}
@@ -514,26 +1096,26 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
                 </svg>
-                Sair
+                {copy.admin.dashboard.logout}
               </button>
             </div>
           </div>
 
           <div className="mt-14 grid gap-4 md:grid-cols-3">
             <StatCard
-              label="Total angariado"
+              label={copy.admin.stats.totalRaised}
               value={formatCurrency(totalContributed)}
-              note={`${totalContributions} contribuicoes registadas`}
+              note={copy.admin.stats.contributionsRegistered(totalContributions)}
             />
             <StatCard
-              label="Presentes concluidos"
+              label={copy.admin.stats.completedGifts}
               value={`${fullyFunded}`}
-              note={pendingGifts > 0 ? `${pendingGifts} ainda por completar` : 'Todos os presentes estao completos'}
+              note={copy.admin.stats.remainingGifts(pendingGifts)}
             />
             <StatCard
-              label="Valor medio"
+              label={copy.admin.stats.averageValue}
               value={formatCurrency(averageContribution)}
-              note="Media por contribuicao recebida"
+              note={copy.admin.stats.perContribution}
             />
           </div>
         </div>
@@ -543,11 +1125,15 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap gap-2">
-              {(['gifts', 'contributions'] as const).map((currentTab) => {
+              {(['gifts', 'contributions', 'alergias', 'boleias'] as const).map((currentTab) => {
                 const active = tab === currentTab
                 const label = currentTab === 'gifts'
-                  ? `Presentes (${gifts.length})`
-                  : `Contribuicoes (${totalContributions})`
+                  ? copy.admin.tabs.gifts(gifts.length)
+                  : currentTab === 'contributions'
+                    ? copy.admin.tabs.contributions(totalContributions)
+                    : currentTab === 'alergias'
+                      ? copy.admin.tabs.alergias(alergias.length)
+                      : copy.admin.tabs.boleias(boleias.length)
 
                 return (
                   <button
@@ -575,12 +1161,20 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 5v14M5 12h14" />
                   </svg>
-                  Adicionar presente
+                  {copy.admin.actions.addGift}
                 </button>
               </div>
+            ) : tab === 'contributions' ? (
+              <p className="text-sm text-gray-500">
+                {copy.admin.summary.contributions(totalContributions, formatCurrency(totalContributed))}
+              </p>
+            ) : tab === 'alergias' ? (
+              <p className="text-sm text-gray-500">
+                {copy.admin.summary.allergies(alergias.length)}
+              </p>
             ) : (
               <p className="text-sm text-gray-500">
-                {totalContributions} contribuicoes · {formatCurrency(totalContributed)} recebidos
+                {copy.admin.summary.rides(boleias.length, totalSeatsOffered)}
               </p>
             )}
           </div>
@@ -589,6 +1183,11 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
 
       <section className="bg-white px-5 py-12 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-6xl">
+          {actionError && (
+            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              {actionError}
+            </div>
+          )}
           {loading ? (
             <div className="grid gap-4 lg:grid-cols-2">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -626,9 +1225,6 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-serif text-2xl leading-tight text-forest">{gift.name}</h3>
-                            <span className="rounded-full bg-accent-light px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-accent-dark">
-                              {gift.category}
-                            </span>
                           </div>
                           {gift.description && (
                             <p className="mt-3 line-clamp-2 text-sm leading-6 text-gray-500">{gift.description}</p>
@@ -644,7 +1240,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                           </svg>
-                          Editar
+                  {copy.admin.actions.edit}
                         </button>
 
                         {deleteId === gift.id ? (
@@ -654,13 +1250,13 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                               disabled={deleting}
                               className="rounded-full bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
                             >
-                              {deleting ? 'A eliminar...' : 'Confirmar'}
+                              {deleting ? copy.admin.actions.loadingDelete : copy.admin.actions.confirm}
                             </button>
                             <button
                               onClick={() => setDeleteId(null)}
                               className="rounded-full bg-accent-light px-4 py-2 text-sm font-medium text-accent-dark transition-colors hover:bg-accent-mid/30"
                             >
-                              Cancelar
+                              {copy.admin.actions.cancel}
                             </button>
                           </>
                         ) : (
@@ -668,7 +1264,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                             onClick={() => setDeleteId(gift.id)}
                             className="rounded-full bg-red-50 px-4 py-2 text-sm font-medium text-red-500 transition-colors hover:bg-red-100"
                           >
-                            Eliminar
+                            {copy.admin.actions.delete}
                           </button>
                         )}
                       </div>
@@ -678,11 +1274,11 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                       <div>
                         <div className="flex items-end justify-between gap-4">
                           <div>
-                            <p className="text-[11px] uppercase tracking-[0.22em] text-gray-400">Progresso</p>
+                            <p className="text-[11px] uppercase tracking-[0.22em] text-gray-400">{copy.admin.giftCard.progress}</p>
                             <p className="mt-2 text-3xl font-semibold text-forest">{Math.round(pct)}%</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-[11px] uppercase tracking-[0.22em] text-gray-400">Contribuido</p>
+                            <p className="text-[11px] uppercase tracking-[0.22em] text-gray-400">{copy.admin.giftCard.contributed}</p>
                             <p className="mt-2 text-lg font-medium text-gray-700">{formatCurrency(gift.total_contributed)}</p>
                           </div>
                         </div>
@@ -695,21 +1291,21 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                         </div>
 
                         <div className="mt-4 flex flex-wrap gap-3 text-sm text-gray-500">
-                          <span className="rounded-full bg-gray-50 px-3 py-2">Meta: {formatCurrency(gift.price)}</span>
-                          <span className="rounded-full bg-gray-50 px-3 py-2">Falta: {formatCurrency(remaining)}</span>
-                          <span className="rounded-full bg-gray-50 px-3 py-2">{gift.contributions.length} contrib.</span>
+                          <span className="rounded-full bg-gray-50 px-3 py-2">{copy.admin.giftCard.meta} {formatCurrency(gift.price)}</span>
+                          <span className="rounded-full bg-gray-50 px-3 py-2">{copy.admin.giftCard.remaining} {formatCurrency(remaining)}</span>
+                          <span className="rounded-full bg-gray-50 px-3 py-2">{gift.contributions.length} {copy.admin.giftCard.contributions}</span>
                         </div>
                       </div>
 
                       <div className="rounded-3xl bg-accent-light/55 p-4">
-                        <p className="text-[11px] uppercase tracking-[0.22em] text-accent-dark/70">Estado</p>
+                        <p className="text-[11px] uppercase tracking-[0.22em] text-accent-dark/70">{copy.admin.giftCard.status}</p>
                         <p className="mt-2 font-serif text-2xl text-forest">
-                          {pct >= 100 ? 'Completo' : pct >= 50 ? 'A meio' : 'A comecar'}
+                          {pct >= 100 ? copy.admin.giftCard.complete : pct >= 50 ? copy.admin.giftCard.halfway : copy.admin.giftCard.starting}
                         </p>
                         <p className="mt-2 text-sm leading-6 text-accent-dark/80">
                           {pct >= 100
-                            ? 'Este presente ja atingiu ou ultrapassou a meta.'
-                            : `Faltam ${formatCurrency(remaining)} para completar este presente.`}
+                            ? copy.admin.giftCard.completeDescription
+                            : copy.admin.giftCard.startingDescription(formatCurrency(remaining))}
                         </p>
                       </div>
                     </div>
@@ -719,11 +1315,11 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
 
               {gifts.length === 0 && (
                 <div className="col-span-full rounded-[30px] border border-dashed border-accent-mid bg-white/70 px-6 py-20 text-center text-sm text-gray-400">
-                  Nenhum presente ainda. Adiciona o primeiro.
+                  {copy.admin.giftCard.empty}
                 </div>
               )}
             </div>
-          ) : (
+          ) : tab === 'contributions' ? (
             <div className="space-y-5">
               {giftsWithContributions.map((gift) => {
                 const pct = gift.price > 0 ? Math.min(100, (gift.total_contributed / gift.price) * 100) : 0
@@ -740,9 +1336,6 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-serif text-2xl text-forest">{gift.name}</h3>
-                          <span className="rounded-full bg-accent-light px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-accent-dark">
-                            {gift.category}
-                          </span>
                         </div>
                         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
                           <div className="flex items-center gap-3">
@@ -761,7 +1354,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                       </div>
 
                       <div className="rounded-3xl bg-accent-light/60 px-4 py-3 text-right">
-                        <p className="text-[11px] uppercase tracking-[0.22em] text-accent-dark/70">Contribuicoes</p>
+                        <p className="text-[11px] uppercase tracking-[0.22em] text-accent-dark/70">{copy.admin.contributions.title}</p>
                         <p className="mt-2 text-2xl font-semibold text-forest">{gift.contributions.length}</p>
                       </div>
                     </div>
@@ -773,15 +1366,90 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10">
                               <span className="text-xs font-medium text-accent">{c.contributor_name[0]?.toUpperCase()}</span>
                             </div>
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-gray-700">{c.contributor_name}</p>
-                              <p className="text-xs uppercase tracking-[0.18em] text-gray-300">{formatDate(c.created_at)}</p>
-                            </div>
+                            {editContributionId === c.id ? (
+                              <div className="min-w-0 space-y-2">
+                                <input
+                                  value={editContributionName}
+                                  onChange={(e) => setEditContributionName(e.target.value)}
+                                  className="w-full rounded-full border border-accent-mid/40 bg-accent-light/30 px-3 py-2 text-sm font-medium text-gray-700 outline-none transition-all focus:border-accent"
+                                />
+                                <p className="text-xs uppercase tracking-[0.18em] text-gray-300">{formatDate(c.created_at)}</p>
+                              </div>
+                            ) : (
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-gray-700">{c.contributor_name}</p>
+                                <p className="text-xs uppercase tracking-[0.18em] text-gray-300">{formatDate(c.created_at)}</p>
+                              </div>
+                            )}
                           </div>
 
-                          <span className="rounded-full bg-forest px-3 py-1.5 text-sm font-medium text-white">
-                            {formatCurrency(Number(c.amount))}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                            {editContributionId === c.id ? (
+                              <>
+                                <div className="relative">
+                                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">€</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    step="0.01"
+                                    value={editContributionAmount}
+                                    onChange={(e) => setEditContributionAmount(e.target.value)}
+                                    className="no-spinner w-28 rounded-full border border-accent-mid/40 bg-accent-light/30 py-2 pl-7 pr-3 text-sm font-medium text-gray-700 outline-none transition-all focus:border-accent"
+                                  />
+                                </div>
+                                <button
+                                  onClick={() => handleSaveContribution(gift.id)}
+                                  disabled={savingContribution || !editContributionName.trim() || Number(editContributionAmount) <= 0}
+                                  className="rounded-full bg-forest px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-dark disabled:opacity-50"
+                                >
+                                  {savingContribution ? copy.admin.actions.loadingSave : copy.admin.actions.save}
+                                </button>
+                                <button
+                                  onClick={handleCancelEditContribution}
+                                  className="rounded-full bg-accent-light px-3 py-1.5 text-xs font-medium text-accent-dark transition-colors hover:bg-accent-mid/30"
+                                >
+                                  {copy.admin.actions.cancel}
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <span className="rounded-full bg-forest px-3 py-1.5 text-sm font-medium text-white">
+                                  {formatCurrency(Number(c.amount))}
+                                </span>
+                                <button
+                                  onClick={() => handleStartEditContribution(c)}
+                                  className="rounded-full bg-accent-light px-3 py-1.5 text-xs font-medium text-accent-dark transition-colors hover:bg-accent-mid/30"
+                                >
+                                  {copy.admin.actions.edit}
+                                </button>
+                              </>
+                            )}
+
+                            {editContributionId !== c.id && deleteContributionId === c.id ? (
+                              <>
+                                <button
+                                  onClick={() => handleDeleteContribution(gift.id)}
+                                  disabled={deletingContribution}
+                                  className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+                                >
+                                  {deletingContribution ? copy.admin.actions.loadingDelete : copy.admin.actions.confirm}
+                                </button>
+                                <button
+                                  onClick={() => setDeleteContributionId(null)}
+                                  className="rounded-full bg-accent-light px-3 py-1.5 text-xs font-medium text-accent-dark transition-colors hover:bg-accent-mid/30"
+                                >
+                                  {copy.admin.actions.cancel}
+                                </button>
+                              </>
+                            ) : editContributionId !== c.id ? (
+                              <button
+                                onClick={() => setDeleteContributionId(c.id)}
+                                className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-100"
+                              >
+                                {copy.admin.actions.delete}
+                              </button>
+                            ) : null}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -791,10 +1459,279 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
 
               {giftsWithContributions.length === 0 && (
                 <div className="rounded-[30px] border border-dashed border-accent-mid bg-white/70 px-6 py-20 text-center text-sm text-gray-400">
-                  Ainda nao ha contribuicoes.
+                  {copy.admin.contributions.empty}
                 </div>
               )}
             </div>
+          ) : tab === 'alergias' ? (
+            <div className="space-y-4">
+              {alergias.map((entry) => (
+                <motion.div
+                  key={entry.id}
+                  initial={{ opacity: 0, y: 18 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                  className="rounded-3xl border border-accent-mid/40 bg-white shadow-sm shadow-accent/5"
+                >
+                  <div className="flex flex-col gap-4 border-b border-accent-mid/20 bg-accent-light/20 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                    <div className="min-w-0 flex-1">
+                      {editAlergiaId === entry.id ? (
+                        <div className="space-y-3">
+                          <input
+                            value={editAlergiaNome}
+                            onChange={(e) => setEditAlergiaNome(e.target.value)}
+                            className="w-full rounded-full border border-accent-mid/40 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 outline-none transition-all focus:border-accent"
+                          />
+                          <p className="text-xs uppercase tracking-[0.18em] text-gray-300">{formatDate(entry.created_at)}</p>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="font-serif text-2xl text-forest">{entry.nome}</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.18em] text-gray-300">{formatDate(entry.created_at)}</p>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="rounded-3xl bg-accent-light/60 px-4 py-3 text-right">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-accent-dark/70">{copy.admin.allergies.restrictions}</p>
+                      <p className="mt-2 text-2xl font-semibold text-forest">{entry.restricoes.length}</p>
+                    </div>
+                  </div>
+
+                  <div className="px-5 py-5 sm:px-6">
+                    {editAlergiaId === entry.id ? (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="mb-2 block text-xs uppercase tracking-[0.18em] text-gray-400">{copy.admin.allergies.restrictions}</label>
+                          <input
+                            value={editAlergiaRestricoes}
+                            onChange={(e) => setEditAlergiaRestricoes(e.target.value)}
+                            placeholder={copy.admin.allergies.editPlaceholder}
+                            className="w-full rounded-2xl border border-accent-mid/40 bg-white px-4 py-3 text-sm text-gray-700 outline-none transition-all focus:border-accent"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-2 block text-xs uppercase tracking-[0.18em] text-gray-400">{copy.admin.allergies.notes}</label>
+                          <textarea
+                            value={editAlergiaNotas}
+                            onChange={(e) => setEditAlergiaNotas(e.target.value)}
+                            rows={3}
+                            className="w-full resize-none rounded-2xl border border-accent-mid/40 bg-white px-4 py-3 text-sm text-gray-700 outline-none transition-all focus:border-accent"
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={handleSaveAlergia}
+                            disabled={savingAlergia || !editAlergiaNome.trim()}
+                            className="rounded-full bg-forest px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-dark disabled:opacity-50"
+                          >
+                            {savingAlergia ? copy.admin.actions.loadingSave : copy.admin.actions.save}
+                          </button>
+                          <button
+                            onClick={handleCancelEditAlergia}
+                            className="rounded-full bg-accent-light px-4 py-2 text-sm font-medium text-accent-dark transition-colors hover:bg-accent-mid/30"
+                          >
+                            {copy.admin.actions.cancel}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap gap-2">
+                          {entry.restricoes.map((restricao) => (
+                            <span
+                              key={restricao}
+                              className="rounded-full bg-accent-light px-3 py-1.5 text-xs font-medium text-accent-dark"
+                            >
+                              {restricao}
+                            </span>
+                          ))}
+                        </div>
+                        {entry.notas && (
+                          <p className="mt-4 text-sm leading-6 text-gray-500">{entry.notas}</p>
+                        )}
+                        <div className="mt-5 flex flex-wrap gap-2">
+                          <button
+                            onClick={() => handleStartEditAlergia(entry)}
+                            className="rounded-full bg-accent-light px-4 py-2 text-sm font-medium text-accent-dark transition-colors hover:bg-accent-mid/30"
+                          >
+                            {copy.admin.actions.edit}
+                          </button>
+                          {deleteAlergiaId === entry.id ? (
+                            <>
+                              <button
+                                onClick={handleDeleteAlergia}
+                                disabled={deletingAlergia}
+                                className="rounded-full bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+                              >
+                                {deletingAlergia ? copy.admin.actions.loadingDelete : copy.admin.actions.confirm}
+                              </button>
+                              <button
+                                onClick={() => setDeleteAlergiaId(null)}
+                                className="rounded-full bg-accent-light px-4 py-2 text-sm font-medium text-accent-dark transition-colors hover:bg-accent-mid/30"
+                              >
+                                {copy.admin.actions.cancel}
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setDeleteAlergiaId(entry.id)}
+                              className="rounded-full bg-red-50 px-4 py-2 text-sm font-medium text-red-500 transition-colors hover:bg-red-100"
+                            >
+                              {copy.admin.actions.delete}
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+
+              {alergias.length === 0 && (
+                <div className="rounded-[30px] border border-dashed border-accent-mid bg-white/70 px-6 py-20 text-center text-sm text-gray-400">
+                  {copy.admin.allergies.empty}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {boleias.map((entry) => (
+                <motion.div
+                  key={entry.id}
+                  initial={{ opacity: 0, y: 18 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                  className="rounded-3xl border border-accent-mid/40 bg-white shadow-sm shadow-accent/5"
+                >
+                  <div className="flex flex-col gap-4 border-b border-accent-mid/20 bg-accent-light/20 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                    <div className="min-w-0 flex-1">
+                      {editBoleiaId === entry.id ? (
+                        <div className="space-y-3">
+                          <input
+                            value={editBoleiaNome}
+                            onChange={(e) => setEditBoleiaNome(e.target.value)}
+                            className="w-full rounded-full border border-accent-mid/40 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 outline-none transition-all focus:border-accent"
+                          />
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <input
+                              value={editBoleiaSentido}
+                              onChange={(e) => setEditBoleiaSentido(e.target.value)}
+                              placeholder={copy.admin.rides.editPlaceholder.route}
+                              className="rounded-full border border-accent-mid/40 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition-all focus:border-accent"
+                            />
+                            <input
+                              value={editBoleiaTelefone}
+                              onChange={(e) => setEditBoleiaTelefone(e.target.value)}
+                              placeholder={copy.admin.rides.editPlaceholder.phone}
+                              className="rounded-full border border-accent-mid/40 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition-all focus:border-accent"
+                            />
+                            <input
+                              type="number"
+                              min="1"
+                              value={editBoleiaLugares}
+                              onChange={(e) => setEditBoleiaLugares(e.target.value)}
+                              className="no-spinner rounded-full border border-accent-mid/40 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition-all focus:border-accent"
+                            />
+                          </div>
+                          <p className="text-xs uppercase tracking-[0.18em] text-gray-300">{formatDate(entry.created_at)}</p>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="font-serif text-2xl text-forest">{entry.nome}</p>
+                          <div className="mt-3 flex flex-wrap gap-3 text-sm text-gray-500">
+                            <span>{entry.sentido}</span>
+                            {entry.telefone && <span>{entry.telefone}</span>}
+                            <span>{formatDate(entry.created_at)}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="rounded-3xl bg-accent-light/60 px-4 py-3 text-right">
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-accent-dark/70">{copy.admin.rides.seats}</p>
+                      <p className="mt-2 text-2xl font-semibold text-forest">{editBoleiaId === entry.id ? editBoleiaLugares || entry.lugares : entry.lugares}</p>
+                    </div>
+                  </div>
+
+                  <div className="px-5 py-5 sm:px-6">
+                    {editBoleiaId === entry.id ? (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="mb-2 block text-xs uppercase tracking-[0.18em] text-gray-400">{copy.admin.rides.notes}</label>
+                          <textarea
+                            value={editBoleiaNotas}
+                            onChange={(e) => setEditBoleiaNotas(e.target.value)}
+                            rows={3}
+                            className="w-full resize-none rounded-2xl border border-accent-mid/40 bg-white px-4 py-3 text-sm text-gray-700 outline-none transition-all focus:border-accent"
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={handleSaveBoleia}
+                            disabled={savingBoleia || !editBoleiaNome.trim() || !editBoleiaSentido.trim() || Number(editBoleiaLugares) < 1}
+                            className="rounded-full bg-forest px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-dark disabled:opacity-50"
+                          >
+                            {savingBoleia ? copy.admin.actions.loadingSave : copy.admin.actions.save}
+                          </button>
+                          <button
+                            onClick={handleCancelEditBoleia}
+                            className="rounded-full bg-accent-light px-4 py-2 text-sm font-medium text-accent-dark transition-colors hover:bg-accent-mid/30"
+                          >
+                            {copy.admin.actions.cancel}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {entry.notas && (
+                          <p className="text-sm leading-6 text-gray-500">{entry.notas}</p>
+                        )}
+                        <div className={`flex flex-wrap gap-2 ${entry.notas ? 'mt-5' : ''}`}>
+                          <button
+                            onClick={() => handleStartEditBoleia(entry)}
+                            className="rounded-full bg-accent-light px-4 py-2 text-sm font-medium text-accent-dark transition-colors hover:bg-accent-mid/30"
+                          >
+                            {copy.admin.actions.edit}
+                          </button>
+                          {deleteBoleiaId === entry.id ? (
+                            <>
+                              <button
+                                onClick={handleDeleteBoleia}
+                                disabled={deletingBoleia}
+                                className="rounded-full bg-red-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:opacity-50"
+                              >
+                                {deletingBoleia ? copy.admin.actions.loadingDelete : copy.admin.actions.confirm}
+                              </button>
+                              <button
+                                onClick={() => setDeleteBoleiaId(null)}
+                                className="rounded-full bg-accent-light px-4 py-2 text-sm font-medium text-accent-dark transition-colors hover:bg-accent-mid/30"
+                              >
+                                {copy.admin.actions.cancel}
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setDeleteBoleiaId(entry.id)}
+                              className="rounded-full bg-red-50 px-4 py-2 text-sm font-medium text-red-500 transition-colors hover:bg-red-100"
+                            >
+                              {copy.admin.actions.delete}
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+
+              {boleias.length === 0 && (
+                <div className="rounded-[30px] border border-dashed border-accent-mid bg-white/70 px-6 py-20 text-center text-sm text-gray-400">
+                  {copy.admin.rides.empty}
+                </div>
+              )}
+            </div>
+
           )}
         </div>
       </section>
@@ -856,16 +1793,16 @@ export default function Admin() {
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="w-full max-w-md rounded-[32px] border border-white/70 bg-white/88 p-10 text-center shadow-[0_35px_80px_-35px_rgba(12,61,53,0.35)] backdrop-blur"
         >
-          <p className="text-[11px] uppercase tracking-[0.3em] text-accent-dark/70">Acesso restrito</p>
-          <p className="mt-3 font-serif text-4xl text-forest">Sem acesso</p>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-accent-dark/70">{copy.admin.forbidden.tag}</p>
+          <p className="mt-3 font-serif text-4xl text-forest">{copy.admin.forbidden.title}</p>
           <p className="mt-4 text-sm leading-6 text-gray-500">
-            Esta conta nao tem permissao para abrir a area de administracao.
+            {copy.admin.forbidden.description}
           </p>
           <button
             onClick={handleLogout}
             className="mt-8 w-full rounded-2xl bg-forest py-3.5 text-sm font-medium text-white transition-all hover:bg-accent-dark"
           >
-            Sair
+            {copy.admin.forbidden.logout}
           </button>
         </motion.div>
       </div>

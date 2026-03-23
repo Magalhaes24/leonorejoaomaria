@@ -3,12 +3,20 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MOTION_EASE, MOTION_ENABLED, motionProps, motionValue, presenceProps } from '../lib/motion'
+import { copy } from '../lib/i18n'
+import cocktailIcon from '../assets/img/cocktail.png'
+import cocktailVenueImage from '../assets/img/herdade-do-crescido-cavalo.jpg'
+import heroPhotoOne from '../assets/img/fotografia-1.jpeg'
+import heroPhotoFour from '../assets/img/fotografia-4.jpeg'
+import heroPhoto from '../assets/img/fotografia-5.jpeg'
+import listSectionImage from '../assets/img/nova-zelandia.jpg'
+import ceremonyVenueImage from '../assets/img/igreja-matriz-da-azambuja.jpg'
 import googleMapsIcon from '../assets/img/maps_icons/google-maps-icon.svg'
 import appleMapsIcon from '../assets/img/maps_icons/apple-maps-icon.svg'
 import wazeIcon from '../assets/img/maps_icons/waze-icon.svg'
 
 // ─── Countdown ────────────────────────────────────────────────────────────────
-const WEDDING_DATE = new Date('2026-09-19T16:00:00')
+const WEDDING_DATE = new Date('2026-09-19T15:00:00')
 
 function useCountdown(target: Date) {
   const [t, setT] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 })
@@ -93,7 +101,13 @@ function ScrollPlane({
 }
 
 function scrollTo(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+  const element = document.getElementById(id)
+  if (!element) return
+
+  const navbarOffset = window.innerWidth >= 768 ? 116 : 84
+  const top = element.getBoundingClientRect().top + window.scrollY - navbarOffset
+
+  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
 }
 
 
@@ -126,12 +140,7 @@ function Modal({ onClose, children }: { onClose: () => void; children: React.Rea
 }
 
 // ─── Modal: Boleias ──────────────────────────────────────────────────────────
-const SENTIDOS = [
-  { value: 'cerimonia', label: 'Para a cerimónia' },
-  { value: 'recepcao', label: 'Para a receção' },
-  { value: 'regresso', label: 'Para o regresso' },
-  { value: 'ambos', label: 'Cerimónia e regresso' },
-]
+const SENTIDOS = copy.home.boleias.options
 
 function BoleiasModal({ onClose }: { onClose: () => void }) {
   const [nome, setNome] = useState('')
@@ -152,7 +161,7 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
       nome: nome.trim(), telefone: telefone.trim() || null,
       lugares, sentido, notas: notas.trim() || null,
     })
-    if (err) { setError('Ocorreu um erro. Por favor tenta novamente.'); setLoading(false); return }
+    if (err) { setError(copy.home.boleias.modal.error); setLoading(false); return }
     setDone(true)
     setLoading(false)
   }
@@ -177,29 +186,29 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </motion.div>
-            <h3 className="font-serif text-2xl text-forest mb-2">Obrigado!</h3>
-            <p className="text-gray-400 text-sm">Registámos a tua disponibilidade.</p>
-            <button onClick={onClose} className="mt-6 text-sm text-accent font-medium hover:text-accent-dark transition-colors">Fechar</button>
+            <h3 className="font-serif text-2xl text-forest mb-2">{copy.home.boleias.modal.successTitle}</h3>
+            <p className="text-gray-400 text-sm">{copy.home.boleias.modal.successMessage}</p>
+            <button onClick={onClose} className="mt-6 text-sm text-accent font-medium hover:text-accent-dark transition-colors">{copy.home.boleias.modal.close}</button>
           </div>
         ) : (
           <>
-            <p className="text-xs uppercase tracking-widest text-accent mb-2">Transportes</p>
-            <h3 className="font-serif text-2xl text-forest mb-1">Ofereces boleia?</h3>
-            <p className="text-gray-400 text-sm mb-6">Regista a tua disponibilidade para ajudar outros convidados.</p>
+            <p className="text-xs uppercase tracking-widest text-accent mb-2">{copy.home.boleias.modal.introTag}</p>
+            <h3 className="font-serif text-2xl text-forest mb-1">{copy.home.boleias.modal.title}</h3>
+            <p className="text-gray-400 text-sm mb-6">{copy.home.boleias.modal.description}</p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">O teu nome *</label>
-                <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome completo"
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.nameLabel}</label>
+                <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder={copy.home.boleias.modal.namePlaceholder}
                   required className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">Telemóvel (opcional)</label>
-                <input type="tel" value={telefone} onChange={e => setTelefone(e.target.value)} placeholder="+351 9XX XXX XXX"
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.phoneLabel}</label>
+                <input type="tel" value={telefone} onChange={e => setTelefone(e.target.value)} placeholder={copy.home.boleias.modal.phonePlaceholder}
                   className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">Lugares disponíveis *</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.seatsLabel}</label>
                 <div className="flex items-center gap-3">
                   <button type="button" onClick={() => setLugares(l => Math.max(1, l - 1))}
                     className="w-10 h-10 rounded-full border border-accent-mid/60 text-accent-dark font-medium hover:bg-accent-light transition-colors">−</button>
@@ -209,7 +218,7 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">Para quando? *</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.whenLabel}</label>
                 <div className="grid grid-cols-1 gap-2">
                   {SENTIDOS.map(s => (
                     <label key={s.value} className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all ${sentido === s.value ? 'border-accent bg-accent-light/50' : 'border-accent-mid/40 hover:border-accent/40'}`}>
@@ -220,16 +229,16 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">Notas (opcional)</label>
-                <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder="Zona de partida, horário preferido…"
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.notesLabel}</label>
+                <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder={copy.home.boleias.modal.notesPlaceholder}
                   rows={2} className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all resize-none" />
               </div>
               {error && <p className="text-red-400 text-xs">{error}</p>}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl text-sm font-medium text-accent-dark bg-accent-light hover:bg-accent-mid/30 transition-colors">Cancelar</button>
+                <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl text-sm font-medium text-accent-dark bg-accent-light hover:bg-accent-mid/30 transition-colors">{copy.home.boleias.modal.cancel}</button>
                 <button type="submit" disabled={loading || !nome.trim() || !sentido}
                   className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-forest hover:bg-accent-dark transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                  {loading ? 'A guardar…' : 'Registar'}
+                  {loading ? copy.home.boleias.modal.loading : copy.home.boleias.modal.submit}
                 </button>
               </div>
             </form>
@@ -241,7 +250,7 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
 }
 
 // ─── Modal: Alergias ─────────────────────────────────────────────────────────
-const RESTRICOES_COMUNS = ['Glúten', 'Lactose', 'Frutos secos', 'Marisco', 'Ovo', 'Vegetariano', 'Vegan']
+const RESTRICOES_COMUNS = copy.home.boleias.commonRestrictions
 
 function AlergiasModal({ onClose }: { onClose: () => void }) {
   const [nome, setNome] = useState('')
@@ -264,7 +273,7 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
     const { error: err } = await supabase.from('alergias').insert({
       nome: nome.trim(), restricoes: todasRestricoes, notas: notas.trim() || null,
     })
-    if (err) { setError('Ocorreu um erro. Por favor tenta novamente.'); setLoading(false); return }
+    if (err) { setError(copy.home.allergiesModal.error); setLoading(false); return }
     setDone(true)
     setLoading(false)
   }
@@ -288,24 +297,24 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </motion.div>
-            <h3 className="font-serif text-2xl text-forest mb-2">Obrigado!</h3>
-            <p className="text-gray-400 text-sm">Registámos as tuas restrições alimentares.</p>
-            <button onClick={onClose} className="mt-6 text-sm text-accent font-medium hover:text-accent-dark transition-colors">Fechar</button>
+            <h3 className="font-serif text-2xl text-forest mb-2">{copy.home.allergiesModal.successTitle}</h3>
+            <p className="text-gray-400 text-sm">{copy.home.allergiesModal.successMessage}</p>
+            <button onClick={onClose} className="mt-6 text-sm text-accent font-medium hover:text-accent-dark transition-colors">{copy.home.allergiesModal.close}</button>
           </div>
         ) : (
           <>
-            <p className="text-xs uppercase tracking-widest text-accent mb-2">Alergias e Intolerâncias</p>
-            <h3 className="font-serif text-2xl text-forest mb-1">Restrições alimentares</h3>
-            <p className="text-gray-400 text-sm mb-6">Indica-nos se tens alguma alergia ou intolerância para que possamos preparar a ementa.</p>
+            <p className="text-xs uppercase tracking-widest text-accent mb-2">{copy.home.allergiesModal.introTag}</p>
+            <h3 className="font-serif text-2xl text-forest mb-1">{copy.home.allergiesModal.title}</h3>
+            <p className="text-gray-400 text-sm mb-6">{copy.home.allergiesModal.description}</p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">O teu nome *</label>
-                <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome completo"
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.allergiesModal.nameLabel}</label>
+                <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder={copy.home.allergiesModal.namePlaceholder}
                   required className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-3">Restrições *</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-3">{copy.home.allergiesModal.restrictionsLabel}</label>
                 <div className="flex flex-wrap gap-2">
                   {RESTRICOES_COMUNS.map(r => (
                     <button key={r} type="button" onClick={() => toggleRestricao(r)}
@@ -316,21 +325,21 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">Outra restrição</label>
-                <input type="text" value={outra} onChange={e => setOutra(e.target.value)} placeholder="Ex: Soja, amendoim…"
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.allergiesModal.otherRestrictionLabel}</label>
+                <input type="text" value={outra} onChange={e => setOutra(e.target.value)} placeholder={copy.home.allergiesModal.otherRestrictionPlaceholder}
                   className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">Notas adicionais (opcional)</label>
-                <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder="Informa-nos de qualquer detalhe adicional…"
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.allergiesModal.notesLabel}</label>
+                <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder={copy.home.allergiesModal.notesPlaceholder}
                   rows={2} className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all resize-none" />
               </div>
               {error && <p className="text-red-400 text-xs">{error}</p>}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl text-sm font-medium text-accent-dark bg-accent-light hover:bg-accent-mid/30 transition-colors">Cancelar</button>
+                <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl text-sm font-medium text-accent-dark bg-accent-light hover:bg-accent-mid/30 transition-colors">{copy.home.allergiesModal.cancel}</button>
                 <button type="submit" disabled={loading || !nome.trim() || (restricoes.length === 0 && !outra.trim())}
                   className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-forest hover:bg-accent-dark transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                  {loading ? 'A guardar…' : 'Registar'}
+                  {loading ? copy.home.allergiesModal.loading : copy.home.allergiesModal.submit}
                 </button>
               </div>
             </form>
@@ -342,13 +351,23 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
 }
 
 // ─── Cartão de Mapa ──────────────────────────────────────────────────────────
-function MapCard({ name, mapQuery, zoom = 16 }: { name: string; mapQuery: string; zoom?: number }) {
+function MapCard({
+  name,
+  mapQuery,
+  zoom = 16,
+  fillHeight = false,
+}: {
+  name: string
+  mapQuery: string
+  zoom?: number
+  fillHeight?: boolean
+}) {
   return (
-    <div className="relative rounded-3xl overflow-hidden shadow-xl shadow-forest/10 ring-1 ring-forest/10">
+    <div className={`relative rounded-3xl overflow-hidden shadow-xl shadow-forest/10 ring-1 ring-forest/10 ${fillHeight ? 'h-full' : ''}`}>
       {/* Iframe — altura extra para cortar o painel de detalhes no fundo */}
-      <div className="aspect-[4/3] relative overflow-hidden">
+      <div className={`relative overflow-hidden ${fillHeight ? 'h-full min-h-[26rem]' : 'aspect-[4/3]'}`}>
         <iframe
-          title={`Mapa — ${name}`}
+          title={`Mapa - ${name}`}
           src={`https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed&z=${zoom}&iwloc=`}
           className="absolute w-full"
           style={{ top: '-110px', height: 'calc(80% + 330px)' }}
@@ -370,24 +389,39 @@ interface VenueProps {
   name: string
   address: string
   time: string
+  imageSrc: string
   mapQuery: string
   googleMapsUrl: string
   appleMapsUrl: string
   wazeUrl: string
   accentBg?: boolean
   mapZoom?: number
+  reverseLayout?: boolean
 }
 
-function VenueSection({ id, name, address, time, mapQuery, googleMapsUrl, appleMapsUrl, wazeUrl, accentBg, mapZoom }: VenueProps) {
+function VenueSection({
+  id,
+  name,
+  address,
+  time,
+  imageSrc,
+  mapQuery,
+  googleMapsUrl,
+  appleMapsUrl,
+  wazeUrl,
+  accentBg,
+  mapZoom,
+  reverseLayout = false,
+}: VenueProps) {
   return (
     <ScrollPlane className={`py-20 md:py-28 ${accentBg ? 'bg-accent-light/40' : 'bg-white'}`}>
       <section id={id} className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
 
         {/* Linha superior: info à esquerda, mapa à direita */}
-        <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start mb-6">
+        <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-stretch mb-6">
 
           {/* Esquerda: título + descrição + endereço */}
-          <FadeUp className="flex flex-col justify-center h-full">
+          <FadeUp className={`flex h-full flex-col justify-center ${reverseLayout ? 'md:order-2' : ''}`}>
             <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-forest mb-5">{name}</h2>
             <div className="flex items-start gap-3 text-sm text-gray-500 mb-3">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3A9E8F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
@@ -401,11 +435,16 @@ function VenueSection({ id, name, address, time, mapQuery, googleMapsUrl, appleM
               </svg>
               <span>{address}</span>
             </div>
+            <div className="relative mt-6 overflow-hidden rounded-3xl shadow-xl shadow-forest/10 ring-1 ring-forest/10">
+              <div className="aspect-[4/3]">
+                <img src={imageSrc} alt={name} className="h-full w-full object-cover" />
+              </div>
+              <div className="absolute inset-0 pointer-events-none rounded-3xl ring-inset ring-1 ring-black/8" />
+            </div>
           </FadeUp>
 
-          {/* Direita: mapa */}
-          <FadeUp delay={0.1}>
-            <MapCard name={name} mapQuery={mapQuery} zoom={mapZoom} />
+          <FadeUp delay={0.12} className={`h-full ${reverseLayout ? 'md:order-1' : ''}`}>
+            <MapCard name={name} mapQuery={mapQuery} zoom={mapZoom} fillHeight />
           </FadeUp>
         </div>
 
@@ -414,18 +453,18 @@ function VenueSection({ id, name, address, time, mapQuery, googleMapsUrl, appleM
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2.5 px-4 py-3.5 rounded-2xl border border-accent-mid/40 bg-white hover:border-accent hover:shadow-md hover:shadow-accent/10 transition-all duration-200">
-                <img src={googleMapsIcon} alt="Google Maps" className="w-5 h-5 shrink-0" />
-                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Google Maps</span>
+                <img src={googleMapsIcon} alt={copy.home.venueActions.googleMaps} className="w-5 h-5 shrink-0" />
+                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">{copy.home.venueActions.googleMaps}</span>
               </a>
               <a href={appleMapsUrl} target="_blank" rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2.5 px-4 py-3.5 rounded-2xl border border-accent-mid/40 bg-white hover:border-accent hover:shadow-md hover:shadow-accent/10 transition-all duration-200">
-                <img src={appleMapsIcon} alt="Maps" className="w-5 h-5 shrink-0" />
-                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Maps</span>
+                <img src={appleMapsIcon} alt={copy.home.venueActions.appleMaps} className="w-5 h-5 shrink-0" />
+                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">{copy.home.venueActions.appleMaps}</span>
               </a>
               <a href={wazeUrl} target="_blank" rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2.5 px-4 py-3.5 rounded-2xl border border-accent-mid/40 bg-white hover:border-accent hover:shadow-md hover:shadow-accent/10 transition-all duration-200">
-                <img src={wazeIcon} alt="Waze" className="w-5 h-5 shrink-0" />
-                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Waze</span>
+                <img src={wazeIcon} alt={copy.home.venueActions.waze} className="w-5 h-5 shrink-0" />
+                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">{copy.home.venueActions.waze}</span>
               </a>
           </div>
         </FadeUp>
@@ -437,9 +476,9 @@ function VenueSection({ id, name, address, time, mapQuery, googleMapsUrl, appleM
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-  { id: 'cerimonia', label: 'Cerimónia' },
-  { id: 'cocktail', label: 'Cocktail' },
-  { id: 'presentes', label: 'Lista' },
+  { id: 'cerimonia', label: copy.home.locations.churchLabel },
+  { id: 'cocktail', label: copy.home.locations.cocktailLabel },
+  { id: 'lista', label: copy.home.listSection.tag },
 ]
 
 export default function Home() {
@@ -452,9 +491,6 @@ export default function Home() {
   const heroContentY = useTransform(scrollYProgress, [0, 0.25], [0, 40])
   const heroContentScale = useTransform(scrollYProgress, [0, 0.25], [1, 0.985])
   const heroContentOpacity = useTransform(scrollYProgress, [0, 0.22], [1, 0.7])
-  const scrollIndicatorY = useTransform(scrollYProgress, [0, 0.2], [0, 56])
-  const scrollIndicatorOpacity = useTransform(scrollYProgress, [0, 0.18], [1, 0])
-
   return (
     <div className="min-h-screen bg-white text-gray-900">
 
@@ -494,8 +530,27 @@ export default function Home() {
             })}
             className="text-xs font-medium text-accent mb-8"
           >
-            19 DE SETEMBRO DE 2026
+            {copy.home.hero.tag}
           </motion.p>
+
+          <motion.div
+            {...motionProps({
+              initial: { opacity: 0, y: 20 },
+              animate: { opacity: 1, y: 0 },
+              transition: { duration: 0.9, delay: 0.12, ease: MOTION_EASE },
+            })}
+            className="mx-auto mb-8 flex w-[19rem] items-end justify-center gap-3 sm:mb-10 sm:w-[24rem] md:w-[30rem]"
+          >
+            <div className="h-32 w-20 overflow-hidden rounded-[1.6rem] border border-white/70 bg-white/80 p-1 shadow-xl shadow-forest/10 sm:h-40 sm:w-24 md:h-52 md:w-32 md:-rotate-6">
+              <img src={heroPhoto} alt="" className="h-full w-full rounded-[1.2rem] object-cover" />
+            </div>
+            <div className="h-40 w-28 overflow-hidden rounded-[2rem] border border-white/70 bg-white/85 p-1.5 shadow-2xl shadow-forest/15 sm:h-52 sm:w-36 md:h-72 md:w-48">
+              <img src={heroPhotoOne} alt="" className="h-full w-full rounded-[1.5rem] object-cover" />
+            </div>
+            <div className="h-28 w-[4.5rem] overflow-hidden rounded-[1.4rem] border border-white/70 bg-white/80 p-1 shadow-xl shadow-forest/10 sm:h-36 sm:w-24 md:h-48 md:w-[7.5rem] md:rotate-6">
+              <img src={heroPhotoFour} alt="" className="h-full w-full rounded-[1rem] object-cover" />
+            </div>
+          </motion.div>
 
           {/* Nome */}
           <motion.h1
@@ -506,7 +561,7 @@ export default function Home() {
             })}
             className="font-serif text-[2.8rem] sm:text-5xl md:text-[6.8rem] leading-[0.92] text-forest mb-8 md:mb-10 text-balance md:whitespace-nowrap"
           >
-            Leonor e João Maria
+            {copy.home.coupleName}
           </motion.h1>
 
           {/* Locais */}
@@ -522,18 +577,16 @@ export default function Home() {
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z" /><circle cx="12" cy="10" r="3" />
               </svg>
-              <span className="text-xs uppercase tracking-wider">Igreja</span>
+              <span className="text-xs uppercase tracking-wider">{copy.home.locations.churchLabel}</span>
               <span className="text-accent-mid">·</span>
-              <span>Igreja Matriz da Azambuja</span>
+              <span>{copy.home.locations.churchName}</span>
             </div>
             <div className="hidden sm:block w-px h-4 bg-accent-mid/40" />
             <div className="flex items-center justify-center gap-2 text-sm text-sage text-center">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 11l19-9-9 19-2-8-8-2z" />
-              </svg>
-              <span className="text-xs uppercase tracking-wider">Cocktail</span>
+              <img src={cocktailIcon} alt="" className="h-[13px] w-[13px] object-contain" />
+              <span className="text-xs uppercase tracking-wider">{copy.home.locations.cocktailLabel}</span>
               <span className="text-accent-mid">·</span>
-              <span>Herdade do Crescido</span>
+              <span>{copy.home.locations.cocktailName}</span>
             </div>
           </motion.div>
 
@@ -567,23 +620,6 @@ export default function Home() {
 
         </motion.div>
 
-        {/* Indicador scroll */}
-        <motion.div
-          {...motionProps({
-            initial: { opacity: 0 },
-            animate: { opacity: 1 },
-            transition: { delay: 2.2, duration: 1 },
-          })}
-          style={{ y: motionValue(scrollIndicatorY, 0), opacity: motionValue(scrollIndicatorOpacity, 1) }}
-          className="absolute bottom-10 left-1/2 -translate-x-1/2">
-          <motion.div
-            {...motionProps({
-              animate: { scaleY: [0.4, 1, 0.4], opacity: [0.3, 0.8, 0.3] },
-              transition: { duration: 2.5, repeat: Infinity, ease: 'easeInOut' },
-            })}
-            className="w-px h-12 bg-gradient-to-b from-transparent via-accent to-transparent origin-top mx-auto"
-          />
-        </motion.div>
       </section>
 
       {/* ── Contagem ─────────────────────────────────────────────────────── */}
@@ -592,13 +628,13 @@ export default function Home() {
           style={{ background: 'radial-gradient(ellipse 50% 100% at 100% 50%, rgba(58,158,143,0.1) 0%, transparent 60%)' }} />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 relative">
           <FadeUp className="text-center mb-12">
-            <p className="text-xs uppercase tracking-widest text-accent font-medium">Contagem decrescente</p>
+            <p className="text-xs uppercase tracking-widest text-accent font-medium">{copy.home.countdown.title}</p>
           </FadeUp>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
-            <CountUnit value={days} label="Dias" />
-            <CountUnit value={hours} label="Horas" />
-            <CountUnit value={minutes} label="Minutos" />
-            <CountUnit value={seconds} label="Segundos" />
+            <CountUnit value={days} label={copy.home.countdown.days} />
+            <CountUnit value={hours} label={copy.home.countdown.hours} />
+            <CountUnit value={minutes} label={copy.home.countdown.minutes} />
+            <CountUnit value={seconds} label={copy.home.countdown.seconds} />
           </div>
         </div>
       </ScrollPlane>
@@ -606,103 +642,107 @@ export default function Home() {
       {/* ── Cerimónia ────────────────────────────────────────────────────── */}
       <VenueSection
         id="cerimonia"
-        sectionLabel="19 de Setembro · 16h00"
-        name="Igreja Matriz da Azambuja"
-        address="Largo da Igreja, 2050-326 Azambuja"
-        time="16h00"
-        mapQuery="Igreja Matriz da Azambuja, Largo da Igreja, 2050-326 Azambuja, Portugal"
-        googleMapsUrl="https://www.google.com/maps/dir/?api=1&destination=Igreja+Matriz+da+Azambuja,+2050-326+Azambuja,+Portugal"
-        appleMapsUrl="https://maps.apple.com/?daddr=Igreja+Matriz+da+Azambuja,+Azambuja,+Portugal"
-        wazeUrl="https://waze.com/ul?q=Igreja+Matriz+da+Azambuja+Azambuja+Portugal&navigate=yes"
+        sectionLabel={copy.home.venues.ceremony.sectionLabel}
+        name={copy.home.venues.ceremony.name}
+        address={copy.home.venues.ceremony.address}
+        time={copy.home.venues.ceremony.time}
+        imageSrc={ceremonyVenueImage}
+        mapQuery={copy.home.venues.ceremony.mapQuery}
+        googleMapsUrl={copy.home.venues.ceremony.googleMapsUrl}
+        appleMapsUrl={copy.home.venues.ceremony.appleMapsUrl}
+        wazeUrl={copy.home.venues.ceremony.wazeUrl}
         mapZoom={17}
       />
 
       {/* ── Cocktail ─────────────────────────────────────────────────────── */}
       <VenueSection
         id="cocktail"
-        sectionLabel="19 de Setembro · 18h30"
-        name="Herdade do Crescido"
-        address="Herdade do Crescido, Valada do Ribatejo, 2070-512 Cartaxo"
-        time="18h30"
-        mapQuery="Herdade do Crescido, Valada do Ribatejo, 2070-512 Cartaxo, Portugal"
-        googleMapsUrl="https://www.google.com/maps/dir/?api=1&destination=Herdade+do+Crescido,+Valada+do+Ribatejo,+2070-512+Cartaxo,+Portugal"
-        appleMapsUrl="https://maps.apple.com/?daddr=Herdade+do+Crescido,+Valada+do+Ribatejo,+Cartaxo,+Portugal"
-        wazeUrl="https://waze.com/ul?q=Herdade+do+Crescido+Valada+do+Ribatejo+Cartaxo+Portugal&navigate=yes"
+        sectionLabel={copy.home.venues.cocktail.sectionLabel}
+        name={copy.home.venues.cocktail.name}
+        address={copy.home.venues.cocktail.address}
+        time={copy.home.venues.cocktail.time}
+        imageSrc={cocktailVenueImage}
+        mapQuery={copy.home.venues.cocktail.mapQuery}
+        googleMapsUrl={copy.home.venues.cocktail.googleMapsUrl}
+        appleMapsUrl={copy.home.venues.cocktail.appleMapsUrl}
+        wazeUrl={copy.home.venues.cocktail.wazeUrl}
         accentBg
         mapZoom={15}
+        reverseLayout
       />
 
       {/* ── Lista de Presentes ───────────────────────────────────────────── */}
-      <section id="presentes" className="py-20 md:py-28 bg-forest relative overflow-hidden">
+      <section id="lista" className="relative overflow-hidden bg-[linear-gradient(180deg,_#f9fcfb_0%,_#edf6f4_100%)] py-20 md:py-28">
         <div className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse 70% 80% at 85% 40%, rgba(107,181,173,0.18) 0%, transparent 55%)' }} />
+          style={{ background: 'radial-gradient(ellipse 70% 80% at 85% 40%, rgba(107,181,173,0.14) 0%, transparent 55%)' }} />
         <div className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse 40% 50% at 10% 70%, rgba(58,158,143,0.12) 0%, transparent 50%)' }} />
+          style={{ background: 'radial-gradient(ellipse 40% 50% at 10% 70%, rgba(58,158,143,0.08) 0%, transparent 50%)' }} />
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
-          <div className="grid md:grid-cols-2 gap-10 md:gap-12 items-center">
-            <FadeUp>
-              <p className="text-xs uppercase tracking-widest text-sage mb-4">Lista</p>
-              <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-white mb-6 leading-tight">
-                Contribui para o nosso novo capítulo.
+          <div className="grid items-center gap-10 md:grid-cols-[0.95fr_1.05fr] md:gap-14">
+            <FadeUp className="max-w-xl">
+              <p className="mb-4 text-xs uppercase tracking-widest text-accent">{copy.home.listSection.tag}</p>
+              <h2 className="mb-6 font-serif text-3xl leading-tight text-forest sm:text-4xl md:text-5xl">
+                {copy.home.listSection.title}
               </h2>
-              <p className="text-accent-mid text-sm leading-relaxed">
-                Se quiserem contribuir para a nossa nova casa ou para a nossa lua de mel, preparámos uma pequena lista.
+              <p className="max-w-lg text-sm leading-relaxed text-gray-500">
+                {copy.home.listSection.description}
               </p>
+              <div className="mt-8 flex">
+                <Link to="/lista"
+                  className="group inline-flex w-full items-center justify-center gap-3 rounded-full bg-forest px-8 py-4 text-sm font-medium text-white shadow-xl shadow-forest/15 transition-all duration-300 hover:bg-accent-dark sm:w-auto">
+                  {copy.home.listSection.cta}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    className="group-hover:translate-x-1 transition-transform duration-300">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              </div>
             </FadeUp>
-            <FadeUp delay={0.15} className="flex md:justify-end">
-              <Link to="/gifts"
-                className="inline-flex w-full sm:w-auto items-center justify-center gap-3 bg-accent text-white text-sm font-medium px-8 py-4 rounded-full hover:bg-sage transition-all duration-300 shadow-xl shadow-accent/25 group">
-                Ver Lista
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                  className="group-hover:translate-x-1 transition-transform duration-300">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </Link>
+            <FadeUp delay={0.15}>
+              <div className="relative overflow-hidden rounded-[32px] shadow-[0_28px_70px_-30px_rgba(12,61,53,0.22)] ring-1 ring-accent-mid/20">
+                <div className="aspect-[4/3]">
+                  <img src={listSectionImage} alt={copy.home.listSection.imageAlt} className="h-full w-full object-cover" />
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-white/8 via-transparent to-transparent" />
+              </div>
             </FadeUp>
           </div>
         </div>
       </section>
 
-      {/* ── Transportes ─────────────────────────────────────────────────── */}
-      <ScrollPlane className="py-16 md:py-22 bg-white">
-        <section id="transportes" className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
-          <div className="grid md:grid-cols-2 gap-8 md:gap-10 items-center">
-            <FadeUp>
-              <p className="text-[11px] uppercase tracking-[0.28em] text-accent/80 font-medium mb-3">Transportes</p>
-              <h2 className="font-serif text-2xl sm:text-3xl md:text-[2.2rem] text-forest mb-4 leading-tight">Vens de carro?</h2>
-              <p className="text-gray-500 text-sm leading-relaxed max-w-md">
-                Se podes oferecer ou precisas de boleia para a cerimónia ou para o regresso, regista-te aqui. Vamos tentar ligar quem precisa de transporte com quem pode ajudar.
+      {/* ── Informações Úteis ───────────────────────────────────────────── */}
+      <section id="transportes" className="py-18 md:py-24 bg-accent-light/25">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
+          <div className="grid items-stretch gap-10 md:grid-cols-2 md:gap-16">
+            <FadeUp className="flex min-h-full flex-col rounded-[28px] border border-accent-mid/20 bg-white/80 p-6 sm:p-7 md:rounded-none md:border-0 md:bg-transparent md:p-0">
+              <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.28em] text-accent/80">{copy.home.transport.tag}</p>
+              <h2 className="mb-5 font-serif text-2xl leading-tight text-forest sm:text-[2rem]">{copy.home.transport.title}</h2>
+              <p className="max-w-md text-gray-500 text-sm leading-relaxed">
+                {copy.home.transport.description}
               </p>
-            </FadeUp>
-            <FadeUp delay={0.15} className="flex md:justify-end">
-              <button onClick={() => setShowBoleias(true)}
-                className="inline-flex w-full sm:w-auto items-center justify-center gap-2.5 border border-accent-mid/40 bg-accent-light/40 text-accent-dark text-sm font-medium px-6 py-3 rounded-full hover:bg-accent-light hover:border-accent/40 transition-all duration-300 group">
-                Registar Boleia
+              <button
+                onClick={() => setShowBoleias(true)}
+                className="group mt-12 inline-flex w-full self-start items-center justify-center gap-2.5 rounded-full border border-accent-mid/40 bg-transparent px-6 py-3 text-sm font-medium text-accent-dark transition-all duration-300 hover:border-accent/40 hover:bg-white/60 sm:w-auto"
+              >
+                {copy.home.transport.cta}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
                   className="group-hover:translate-x-0.5 transition-transform duration-300">
                   <path d="M5 12h14M12 5l7 7-7 7" />
                 </svg>
               </button>
             </FadeUp>
-          </div>
-        </section>
-      </ScrollPlane>
 
-      {/* ── Alergias ────────────────────────────────────────────────────── */}
-      <section id="alergias" className="py-16 md:py-22 bg-accent-light/25">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
-          <div className="grid md:grid-cols-2 gap-8 md:gap-10 items-center">
-            <FadeUp>
-              <p className="text-[11px] uppercase tracking-[0.28em] text-accent/80 font-medium mb-3">Alergias e Intolerâncias</p>
-              <h2 className="font-serif text-2xl sm:text-3xl md:text-[2.2rem] text-forest mb-4 leading-tight">Tens alguma restrição alimentar?</h2>
-              <p className="text-gray-500 text-sm leading-relaxed max-w-md">
-                Para garantir que toda a gente desfruta da refeição com segurança, pedimos que nos indiques quaisquer alergias ou intolerâncias alimentares.
+            <FadeUp delay={0.08} className="flex min-h-full flex-col rounded-[28px] border border-accent-mid/20 bg-white/80 p-6 sm:p-7 md:rounded-none md:border-0 md:bg-transparent md:p-0">
+              <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.28em] text-accent/80">{copy.home.allergies.tag}</p>
+              <h2 className="mb-5 font-serif text-2xl leading-tight text-forest sm:text-[2rem]">{copy.home.allergies.title}</h2>
+              <p className="max-w-md text-gray-500 text-sm leading-relaxed">
+                {copy.home.allergies.description}
               </p>
-            </FadeUp>
-            <FadeUp delay={0.15} className="flex md:justify-end">
-              <button onClick={() => setShowAlergias(true)}
-                className="inline-flex w-full sm:w-auto items-center justify-center gap-2.5 border border-accent-mid/40 bg-white/70 text-accent-dark text-sm font-medium px-6 py-3 rounded-full hover:bg-white hover:border-accent/40 transition-all duration-300 group">
-                Registar Alergias
+              <button
+                onClick={() => setShowAlergias(true)}
+                className="group mt-12 inline-flex w-full self-start items-center justify-center gap-2.5 rounded-full border border-accent-mid/40 bg-transparent px-6 py-3 text-sm font-medium text-accent-dark transition-all duration-300 hover:border-accent/40 hover:bg-white/60 sm:w-auto"
+              >
+                {copy.home.allergies.cta}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
                   className="group-hover:translate-x-0.5 transition-transform duration-300">
                   <path d="M5 12h14M12 5l7 7-7 7" />
@@ -716,8 +756,8 @@ export default function Home() {
       {/* ── Rodapé ───────────────────────────────────────────────────────── */}
       <footer className="py-10 bg-forest border-t border-white/5">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0 text-center sm:text-left">
-          <p className="font-serif text-lg text-accent-mid">L JM</p>
-          <p className="text-xs uppercase tracking-widest text-sage/60">19 Setembro · 2026</p>
+          <p className="font-serif text-lg text-accent-mid">{copy.navbar.brand}</p>
+          <p className="text-xs uppercase tracking-widest text-sage/60">{copy.home.footer.date}</p>
         </div>
       </footer>
 
