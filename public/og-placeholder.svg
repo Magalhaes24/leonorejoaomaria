@@ -1,0 +1,12 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#F7F2E8"/>
+  <circle cx="180" cy="120" r="160" fill="#E6D4B8"/>
+  <circle cx="1020" cy="80" r="240" fill="#D0D0CE"/>
+  <rect x="120" y="220" width="960" height="280" rx="80" fill="#F7F2E8" stroke="#DCC29A"/>
+  <text x="180" y="360" fill="#101820" font-family="Manrope, sans-serif" font-size="64" font-weight="600">
+    Lumeo Restaurant
+  </text>
+  <text x="180" y="430" fill="#63666A" font-family="Manrope, sans-serif" font-size="28" font-weight="400">
+    Seasonal tasting · Coastal calm · Lisboa
+  </text>
+</svg>
