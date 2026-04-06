@@ -8,6 +8,8 @@ import Lista from './pages/Lista'
 import Admin from './pages/Admin'
 import { MOTION_EASE, MOTION_ENABLED, motionProps, presenceProps } from './lib/motion'
 import { copy } from './lib/i18n'
+import { EditorProvider } from './contexts/EditorContext'
+import { EditorToolbar } from './components/editor'
 
 function PageTransition({ children }: { children: React.ReactNode }) {
   return (
@@ -104,14 +106,17 @@ function AppInner() {
         </Routes>
       </AnimatePresence>
       <BackToTopButton onClick={() => lenisRef.current?.scrollTo(0) ?? window.scrollTo({ top: 0, behavior: 'smooth' })} />
+      <EditorToolbar />
     </MotionConfig>
   )
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppInner />
-    </BrowserRouter>
+    <EditorProvider>
+      <BrowserRouter>
+        <AppInner />
+      </BrowserRouter>
+    </EditorProvider>
   )
 }

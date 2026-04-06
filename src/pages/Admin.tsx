@@ -4,6 +4,9 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase, type Alergia, type Boleia, type Gift } from '../lib/supabase'
 import { MOTION_EASE, motionProps, presenceProps } from '../lib/motion'
 import { copy } from '../lib/i18n'
+import { useNavigate } from 'react-router-dom'
+import { useEditor } from '../components/editor'
+import { CONTENT_DEFAULTS } from '../lib/siteContent'
 
 const ADMIN_USER_ID = '0b9c93dd-17a2-4943-befd-968943ba432f'
 interface ContribRow {
@@ -53,6 +56,35 @@ const formatDate = (value: string) =>
 
 const MAX_IMAGE_DIMENSION = 1600
 const MAX_IMAGE_BYTES = 900_000
+const HOME_SECTION_LABELS: Record<string, string> = {
+  countdown: 'Contagem',
+  ceremony: 'Cerimonia',
+  cocktail: 'Cocktail',
+  list: 'Lista',
+  info: 'Transportes e alergias',
+}
+const LISTA_SECTION_LABELS: Record<string, string> = {
+  gifts: 'Presentes',
+  honeymoon: 'Lua de mel',
+}
+
+const parseOrderedIds = (value: string, defaults: readonly string[]) => {
+  const allowed = new Set(defaults)
+  const parsed = value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => allowed.has(item))
+  const missing = defaults.filter((item) => !parsed.includes(item))
+  return [...parsed, ...missing]
+}
+
+const moveItem = (items: string[], index: number, direction: -1 | 1) => {
+  const nextIndex = index + direction
+  if (nextIndex < 0 || nextIndex >= items.length) return items
+  const next = [...items]
+  ;[next[index], next[nextIndex]] = [next[nextIndex], next[index]]
+  return next
+}
 
 const loadImageElement = (file: File) =>
   new Promise<HTMLImageElement>((resolve, reject) => {
@@ -714,7 +746,11 @@ function GiftFormModal({
 }
 
 function AdminPanel({ onLogout }: { onLogout: () => void }) {
-  const [tab, setTab] = useState<'gifts' | 'contributions' | 'alergias' | 'boleias'>('gifts')
+  const navigate = useNavigate()
+  const { setEditMode, isEditMode, getContent, updateContent, saveAll, dirtyCount, isSaving, saveError, clearSaveError } = useEditor()
+  const [tab, setTab] = useState<'gifts' | 'contributions' | 'alergias' | 'boleias' | 'conteudo'>('gifts')
+  const homeSectionOrder = parseOrderedIds(getContent('layout.home_order', 'countdown,ceremony,cocktail,list,info'), ['countdown', 'ceremony', 'cocktail', 'list', 'info'])
+  const listaSectionOrder = parseOrderedIds(getContent('layout.lista_order', 'gifts,honeymoon'), ['gifts', 'honeymoon'])
   const [gifts, setGifts] = useState<GiftRow[]>([])
   const [alergias, setAlergias] = useState<AlergiaRow[]>([])
   const [boleias, setBoleias] = useState<BoleiaRow[]>([])
@@ -1090,6 +1126,13 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                 {copy.admin.dashboard.giftsCount(gifts.length)}
               </div>
               <button
+                type="button"
+                onClick={() => { setEditMode(true); navigate('/') }}
+                className="inline-flex items-center gap-2 rounded-lg border border-accent/30 bg-accent-light px-4 py-2 text-sm font-medium text-forest transition-colors hover:bg-accent hover:text-white"
+              >
+                ✎ Editar Site
+              </button>
+              <button
                 onClick={onLogout}
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-accent-mid/50 px-5 py-2.5 text-sm font-medium text-accent-dark transition-all duration-300 hover:bg-accent hover:text-white hover:border-accent"
               >
@@ -1149,6 +1192,17 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                   </button>
                 )
               })}
+              <button
+                type="button"
+                onClick={() => setTab('conteudo')}
+                className={`rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-300 ${
+                  tab === 'conteudo'
+                    ? 'bg-forest text-white shadow-lg shadow-forest/15'
+                    : 'border border-accent-mid/40 bg-white text-gray-500 hover:border-accent hover:text-forest'
+                }`}
+              >
+                Conteúdo
+              </button>
             </div>
 
             {tab === 'gifts' ? (
@@ -1172,6 +1226,8 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
               <p className="text-sm text-gray-500">
                 {copy.admin.summary.allergies(alergias.length)}
               </p>
+            ) : tab === 'conteudo' ? (
+              null
             ) : (
               <p className="text-sm text-gray-500">
                 {copy.admin.summary.rides(boleias.length, totalSeatsOffered)}
@@ -1215,7 +1271,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                             <img src={gift.image_url} alt={gift.name} className="h-full w-full object-cover" />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center">
-                              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#3A9E8F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M20 12v10H4V12M2 7h20v5H2z" />
                               </svg>
                             </div>
@@ -1285,8 +1341,8 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
 
                         <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-accent-light">
                           <div
-                            className="h-full rounded-full bg-[linear-gradient(90deg,_#3A9E8F,_#0C3D35)]"
-                            style={{ width: `${pct}%` }}
+                            className="h-full rounded-full"
+                            style={{ width: `${pct}%`, background: 'linear-gradient(90deg, var(--color-accent), var(--color-forest))' }}
                           />
                         </div>
 
@@ -1341,8 +1397,8 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                           <div className="flex items-center gap-3">
                             <div className="h-2 w-28 overflow-hidden rounded-full bg-accent-light">
                               <div
-                                className="h-full rounded-full bg-[linear-gradient(90deg,_#3A9E8F,_#0C3D35)]"
-                                style={{ width: `${pct}%` }}
+                                className="h-full rounded-full"
+                                style={{ width: `${pct}%`, background: 'linear-gradient(90deg, var(--color-accent), var(--color-forest))' }}
                               />
                             </div>
                             <span className="text-xs font-medium text-accent">{Math.round(pct)}%</span>
@@ -1594,7 +1650,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                 </div>
               )}
             </div>
-          ) : (
+          ) : tab === 'boleias' ? (
             <div className="space-y-4">
               {boleias.map((entry) => (
                 <motion.div
@@ -1732,7 +1788,166 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
               )}
             </div>
 
-          )}
+          ) : tab === 'conteudo' ? (
+            <div className="space-y-6">
+              <div className="rounded-xl border border-accent-mid/20 overflow-hidden">
+                <div className="bg-accent-light/60 px-4 py-2.5 border-b border-accent-mid/20">
+                  <h4 className="text-xs font-semibold text-forest uppercase tracking-wide">Estrutura das paginas</h4>
+                </div>
+                <div className="divide-y divide-accent-mid/10">
+                  <div className="px-4 py-4">
+                    <p className="text-xs font-medium text-forest/70 mb-3">Home</p>
+                    <div className="space-y-2">
+                      {homeSectionOrder.map((sectionId, index) => (
+                        <div key={sectionId} className="flex items-center justify-between gap-3 rounded-lg border border-accent-mid/20 bg-white px-3 py-2">
+                          <span className="text-sm text-forest">{HOME_SECTION_LABELS[sectionId]}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => updateContent('layout.home_order', moveItem(homeSectionOrder, index, -1).join(','))}
+                              disabled={index === 0}
+                              className="rounded-md border border-accent-mid/30 px-2 py-1 text-xs text-forest disabled:opacity-30"
+                            >
+                              Subir
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateContent('layout.home_order', moveItem(homeSectionOrder, index, 1).join(','))}
+                              disabled={index === homeSectionOrder.length - 1}
+                              className="rounded-md border border-accent-mid/30 px-2 py-1 text-xs text-forest disabled:opacity-30"
+                            >
+                              Descer
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="px-4 py-4">
+                    <p className="text-xs font-medium text-forest/70 mb-3">Lista</p>
+                    <div className="space-y-2">
+                      {listaSectionOrder.map((sectionId, index) => (
+                        <div key={sectionId} className="flex items-center justify-between gap-3 rounded-lg border border-accent-mid/20 bg-white px-3 py-2">
+                          <span className="text-sm text-forest">{LISTA_SECTION_LABELS[sectionId]}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => updateContent('layout.lista_order', moveItem(listaSectionOrder, index, -1).join(','))}
+                              disabled={index === 0}
+                              className="rounded-md border border-accent-mid/30 px-2 py-1 text-xs text-forest disabled:opacity-30"
+                            >
+                              Subir
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateContent('layout.lista_order', moveItem(listaSectionOrder, index, 1).join(','))}
+                              disabled={index === listaSectionOrder.length - 1}
+                              className="rounded-md border border-accent-mid/30 px-2 py-1 text-xs text-forest disabled:opacity-30"
+                            >
+                              Descer
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-forest">Conteúdo do site</h3>
+                  <p className="text-sm text-forest/60 mt-0.5">Edita os textos e imagens do site</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {saveError && (
+                    <span className="text-xs text-red-500 max-w-[200px] truncate" title={saveError}>⚠ {saveError}</span>
+                  )}
+                  {!saveError && dirtyCount > 0 && (
+                    <span className="text-xs text-forest/50">{dirtyCount} alterações</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { clearSaveError(); saveAll() }}
+                    disabled={dirtyCount === 0 || isSaving}
+                    className="bg-accent text-white text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-40 hover:bg-accent/80 transition-colors"
+                  >
+                    {isSaving ? 'A guardar…' : 'Guardar tudo'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEditMode(!isEditMode); if (!isEditMode) navigate('/') }}
+                    className={`text-sm font-medium px-4 py-2 rounded-lg border transition-colors ${isEditMode ? 'bg-forest text-white border-forest' : 'border-accent/30 text-forest hover:bg-accent-light'}`}
+                  >
+                    {isEditMode ? '✓ Modo edição ativo' : '✎ Ativar edição visual'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Content items grouped by section */}
+              {(() => {
+                // Group CONTENT_DEFAULTS by section
+                const sections: Record<string, Array<{ key: string; def: typeof CONTENT_DEFAULTS[keyof typeof CONTENT_DEFAULTS] }>> = {}
+                for (const [key, def] of Object.entries(CONTENT_DEFAULTS)) {
+                  if (!sections[def.section]) sections[def.section] = []
+                  sections[def.section].push({ key, def: def as typeof CONTENT_DEFAULTS[keyof typeof CONTENT_DEFAULTS] })
+                }
+                return Object.entries(sections).map(([section, items]) => (
+                  <div key={section} className="rounded-xl border border-accent-mid/20 overflow-hidden">
+                    <div className="bg-accent-light/60 px-4 py-2.5 border-b border-accent-mid/20">
+                      <h4 className="text-xs font-semibold text-forest uppercase tracking-wide">{section}</h4>
+                    </div>
+                    <div className="divide-y divide-accent-mid/10">
+                      {items.map(({ key, def }) => {
+                        const currentValue = getContent(key, def.value)
+                        return (
+                          <div key={key} className="flex items-start gap-4 px-4 py-3">
+                            <div className="flex-1 min-w-0">
+                              <label className="block text-xs font-medium text-forest/70 mb-1">{def.label}</label>
+                              {def.type === 'text' || def.type === 'url' ? (
+                                <input
+                                  type="text"
+                                  value={currentValue}
+                                  onChange={e => updateContent(key, e.target.value)}
+                                  className="w-full text-sm border border-accent-mid/40 rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-accent/40 bg-white"
+                                />
+                              ) : def.type === 'html' ? (
+                                <textarea
+                                  rows={3}
+                                  value={currentValue}
+                                  onChange={e => updateContent(key, e.target.value)}
+                                  className="w-full text-sm border border-accent-mid/40 rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-accent/40 bg-white resize-y"
+                                />
+                              ) : def.type === 'image' ? (
+                                <div className="flex gap-2 items-center">
+                                  {currentValue && (
+                                    <img src={currentValue} alt="" className="h-10 w-10 rounded object-cover border border-accent-mid/20 shrink-0" />
+                                  )}
+                                  <input
+                                    type="text"
+                                    value={currentValue}
+                                    onChange={e => updateContent(key, e.target.value)}
+                                    placeholder="https://..."
+                                    className="flex-1 text-sm border border-accent-mid/40 rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-accent/40 bg-white"
+                                  />
+                                </div>
+                              ) : null}
+                            </div>
+                            <span className={`mt-5 shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${
+                              def.type === 'image' ? 'bg-purple-100 text-purple-700' :
+                              def.type === 'url' ? 'bg-blue-100 text-blue-700' :
+                              'bg-accent-light text-forest'
+                            }`}>{def.type}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -1791,7 +2006,7 @@ export default function Admin() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full max-w-md rounded-[32px] border border-white/70 bg-white/88 p-10 text-center shadow-[0_35px_80px_-35px_rgba(12,61,53,0.35)] backdrop-blur"
+          className="w-full max-w-md rounded-[32px] border border-white/70 bg-white/88 p-10 text-center shadow-[0_35px_80px_-35px_color-mix(in_srgb,var(--color-forest)_35%,transparent)] backdrop-blur"
         >
           <p className="text-[11px] uppercase tracking-[0.3em] text-accent-dark/70">{copy.admin.forbidden.tag}</p>
           <p className="mt-3 font-serif text-4xl text-forest">{copy.admin.forbidden.title}</p>

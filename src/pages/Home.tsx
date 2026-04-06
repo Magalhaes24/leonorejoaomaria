@@ -1,9 +1,11 @@
 import { AnimatePresence, motion, useInView, useScroll, useTransform } from 'framer-motion'
+import type { CSSProperties } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { MOTION_EASE, MOTION_ENABLED, motionProps, motionValue, presenceProps } from '../lib/motion'
 import { copy } from '../lib/i18n'
+import { EditableText, EditableImage, useContent, useEditor } from '../components/editor'
 import cocktailIcon from '../assets/img/cocktail.png'
 import cocktailVenueImage from '../assets/img/herdade-do-crescido-cavalo.jpg'
 import heroPhotoOne from '../assets/img/fotografia-1.jpeg'
@@ -15,14 +17,30 @@ import googleMapsIcon from '../assets/img/maps_icons/google-maps-icon.svg'
 import appleMapsIcon from '../assets/img/maps_icons/apple-maps-icon.svg'
 import wazeIcon from '../assets/img/maps_icons/waze-icon.svg'
 
-// ─── Countdown ────────────────────────────────────────────────────────────────
-const WEDDING_DATE = new Date('2026-09-19T15:00:00')
+const DEFAULT_HOME_SECTION_ORDER = ['countdown', 'ceremony', 'cocktail', 'list', 'info'] as const
 
-function useCountdown(target: Date) {
+// ─── Countdown ────────────────────────────────────────────────────────────────
+const DEFAULT_WEDDING_TIMESTAMP = new Date('2026-09-19T15:00:00').getTime()
+const MONTHS: Record<string, number> = {
+  janeiro: 0,
+  fevereiro: 1,
+  marco: 2,
+  abril: 3,
+  maio: 4,
+  junho: 5,
+  julho: 6,
+  agosto: 7,
+  setembro: 8,
+  outubro: 9,
+  novembro: 10,
+  dezembro: 11,
+}
+
+function useCountdown(targetTimestamp: number) {
   const [t, setT] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 })
   useEffect(() => {
     const tick = () => {
-      const diff = target.getTime() - Date.now()
+      const diff = targetTimestamp - Date.now()
       if (diff <= 0) return setT({ days: 0, hours: 0, minutes: 0, seconds: 0 })
       setT({
         days: Math.floor(diff / 86400000),
@@ -34,11 +52,78 @@ function useCountdown(target: Date) {
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
-  }, [target])
+  }, [targetTimestamp])
   return t
 }
 
-function CountUnit({ value, label }: { value: number; label: string }) {
+function normalizeText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function parseWeddingTimestamp(dateText: string, timeText: string) {
+  const normalizedDate = normalizeText(dateText)
+  const normalizedTime = normalizeText(timeText)
+
+  const dateMatch = normalizedDate.match(/(\d{1,2})(?:\s+de)?\s+([a-z]+)(?:\s+de)?\s+(\d{4})/)
+  const timeMatch = normalizedTime.match(/(\d{1,2})(?:[:h](\d{2}))?/)
+
+  if (!dateMatch || !timeMatch) return DEFAULT_WEDDING_TIMESTAMP
+
+  const day = Number(dateMatch[1])
+  const month = MONTHS[dateMatch[2]]
+  const year = Number(dateMatch[3])
+  const hours = Number(timeMatch[1])
+  const minutes = Number(timeMatch[2] ?? '0')
+
+  if (
+    Number.isNaN(day) ||
+    month === undefined ||
+    Number.isNaN(year) ||
+    Number.isNaN(hours) ||
+    Number.isNaN(minutes)
+  ) {
+    return DEFAULT_WEDDING_TIMESTAMP
+  }
+
+  return new Date(year, month, day, hours, minutes, 0, 0).getTime()
+}
+
+function buildMapLinks(address: string) {
+  const normalizedAddress = address.trim()
+  const encodedAddress = encodeURIComponent(normalizedAddress)
+
+  return {
+    mapQuery: normalizedAddress,
+    googleMapsUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`,
+    appleMapsUrl: `https://maps.apple.com/?daddr=${encodedAddress}`,
+    wazeUrl: `https://waze.com/ul?q=${encodedAddress}&navigate=yes`,
+  }
+}
+
+function parseSectionOrder(value: string, defaults: readonly string[]) {
+  const allowed = new Set(defaults)
+  const parsed = value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => allowed.has(item))
+
+  const missing = defaults.filter((item) => !parsed.includes(item))
+  return [...parsed, ...missing]
+}
+
+function createSectionOrderMap(order: string[]) {
+  return order.reduce<Record<string, number>>((acc, id, index) => {
+    acc[id] = index
+    return acc
+  }, {})
+}
+
+function CountUnit({ value, label, contentKey }: { value: number; label: string; contentKey?: string }) {
   const ref = useRef(null)
   const inView = useInView(ref, { once: true })
   const shown = MOTION_ENABLED ? inView : false
@@ -54,7 +139,9 @@ function CountUnit({ value, label }: { value: number; label: string }) {
       <span className="font-serif text-4xl md:text-6xl text-forest tabular-nums">
         {String(value).padStart(2, '0')}
       </span>
-      <span className="text-xs uppercase tracking-widest text-accent mt-2">{label}</span>
+      <span className="text-xs uppercase tracking-widest text-accent mt-2">
+        {contentKey ? <EditableText contentKey={contentKey} fallback={label} tag="span" /> : label}
+      </span>
     </motion.div>
   )
 }
@@ -79,10 +166,12 @@ function ScrollPlane({
   children,
   className = '',
   offset = ['start end', 'end start'] as const,
+  style,
 }: {
   children: React.ReactNode
   className?: string
   offset?: NonNullable<Parameters<typeof useScroll>[0]>['offset']
+  style?: CSSProperties
 }) {
   const ref = useRef<HTMLElement | null>(null)
   const { scrollYProgress } = useScroll({ target: ref, offset })
@@ -92,7 +181,7 @@ function ScrollPlane({
   return (
     <motion.section
       ref={ref}
-      style={{ y: motionValue(y, 0), scale: motionValue(scale, 1) }}
+      style={{ y: motionValue(y, 0), scale: motionValue(scale, 1), ...style }}
       className={className}
     >
       {children}
@@ -151,6 +240,13 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
+  const closeLabel = useContent('home.boleias.close', copy.home.boleias.modal.close)
+  const cancelLabel = useContent('home.boleias.cancel', copy.home.boleias.modal.cancel)
+  const submitLabel = useContent('home.boleias.submit', copy.home.boleias.modal.submit)
+  const loadingLabel = useContent('home.boleias.loading', copy.home.boleias.modal.loading)
+  const namePlaceholder = useContent('home.boleias.name_placeholder', copy.home.boleias.modal.namePlaceholder)
+  const phonePlaceholder = useContent('home.boleias.phone_placeholder', copy.home.boleias.modal.phonePlaceholder)
+  const notesPlaceholder = useContent('home.boleias.notes_placeholder', copy.home.boleias.modal.notesPlaceholder)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -182,13 +278,13 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
               })}
               className="w-14 h-14 bg-accent/15 rounded-full flex items-center justify-center mx-auto mb-4"
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3A9E8F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </motion.div>
             <h3 className="font-serif text-2xl text-forest mb-2">{copy.home.boleias.modal.successTitle}</h3>
             <p className="text-gray-400 text-sm">{copy.home.boleias.modal.successMessage}</p>
-            <button onClick={onClose} className="mt-6 text-sm text-accent font-medium hover:text-accent-dark transition-colors">{copy.home.boleias.modal.close}</button>
+            <button onClick={onClose} className="mt-6 text-sm text-accent font-medium hover:text-accent-dark transition-colors"><EditableText contentKey="home.boleias.close" fallback={closeLabel} tag="span" /></button>
           </div>
         ) : (
           <>
@@ -199,12 +295,12 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.nameLabel}</label>
-                <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder={copy.home.boleias.modal.namePlaceholder}
+                <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder={namePlaceholder}
                   required className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.phoneLabel}</label>
-                <input type="tel" value={telefone} onChange={e => setTelefone(e.target.value)} placeholder={copy.home.boleias.modal.phonePlaceholder}
+                <input type="tel" value={telefone} onChange={e => setTelefone(e.target.value)} placeholder={phonePlaceholder}
                   className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
@@ -230,15 +326,15 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
               </div>
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.notesLabel}</label>
-                <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder={copy.home.boleias.modal.notesPlaceholder}
+                <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder={notesPlaceholder}
                   rows={2} className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all resize-none" />
               </div>
               {error && <p className="text-red-400 text-xs">{error}</p>}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl text-sm font-medium text-accent-dark bg-accent-light hover:bg-accent-mid/30 transition-colors">{copy.home.boleias.modal.cancel}</button>
+                <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl text-sm font-medium text-accent-dark bg-accent-light hover:bg-accent-mid/30 transition-colors"><EditableText contentKey="home.boleias.cancel" fallback={cancelLabel} tag="span" /></button>
                 <button type="submit" disabled={loading || !nome.trim() || !sentido}
                   className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-forest hover:bg-accent-dark transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                  {loading ? copy.home.boleias.modal.loading : copy.home.boleias.modal.submit}
+                  <EditableText contentKey={loading ? 'home.boleias.loading' : 'home.boleias.submit'} fallback={loading ? loadingLabel : submitLabel} tag="span" />
                 </button>
               </div>
             </form>
@@ -260,6 +356,13 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
+  const closeLabel = useContent('home.allergies_modal.close', copy.home.allergiesModal.close)
+  const cancelLabel = useContent('home.allergies_modal.cancel', copy.home.allergiesModal.cancel)
+  const submitLabel = useContent('home.allergies_modal.submit', copy.home.allergiesModal.submit)
+  const loadingLabel = useContent('home.allergies_modal.loading', copy.home.allergiesModal.loading)
+  const namePlaceholder = useContent('home.allergies_modal.name_placeholder', copy.home.allergiesModal.namePlaceholder)
+  const otherPlaceholder = useContent('home.allergies_modal.other_placeholder', copy.home.allergiesModal.otherRestrictionPlaceholder)
+  const notesPlaceholder = useContent('home.allergies_modal.notes_placeholder', copy.home.allergiesModal.notesPlaceholder)
 
   const toggleRestricao = (r: string) =>
     setRestricoes(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])
@@ -293,13 +396,13 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
               })}
               className="w-14 h-14 bg-accent/15 rounded-full flex items-center justify-center mx-auto mb-4"
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3A9E8F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </motion.div>
             <h3 className="font-serif text-2xl text-forest mb-2">{copy.home.allergiesModal.successTitle}</h3>
             <p className="text-gray-400 text-sm">{copy.home.allergiesModal.successMessage}</p>
-            <button onClick={onClose} className="mt-6 text-sm text-accent font-medium hover:text-accent-dark transition-colors">{copy.home.allergiesModal.close}</button>
+            <button onClick={onClose} className="mt-6 text-sm text-accent font-medium hover:text-accent-dark transition-colors"><EditableText contentKey="home.allergies_modal.close" fallback={closeLabel} tag="span" /></button>
           </div>
         ) : (
           <>
@@ -310,7 +413,7 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.allergiesModal.nameLabel}</label>
-                <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder={copy.home.allergiesModal.namePlaceholder}
+                <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder={namePlaceholder}
                   required className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
@@ -326,20 +429,20 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
               </div>
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.allergiesModal.otherRestrictionLabel}</label>
-                <input type="text" value={outra} onChange={e => setOutra(e.target.value)} placeholder={copy.home.allergiesModal.otherRestrictionPlaceholder}
+                <input type="text" value={outra} onChange={e => setOutra(e.target.value)} placeholder={otherPlaceholder}
                   className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.allergiesModal.notesLabel}</label>
-                <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder={copy.home.allergiesModal.notesPlaceholder}
+                <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder={notesPlaceholder}
                   rows={2} className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all resize-none" />
               </div>
               {error && <p className="text-red-400 text-xs">{error}</p>}
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl text-sm font-medium text-accent-dark bg-accent-light hover:bg-accent-mid/30 transition-colors">{copy.home.allergiesModal.cancel}</button>
+                <button type="button" onClick={onClose} className="flex-1 py-3 rounded-xl text-sm font-medium text-accent-dark bg-accent-light hover:bg-accent-mid/30 transition-colors"><EditableText contentKey="home.allergies_modal.cancel" fallback={cancelLabel} tag="span" /></button>
                 <button type="submit" disabled={loading || !nome.trim() || (restricoes.length === 0 && !outra.trim())}
                   className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-forest hover:bg-accent-dark transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                  {loading ? copy.home.allergiesModal.loading : copy.home.allergiesModal.submit}
+                  <EditableText contentKey={loading ? 'home.allergies_modal.loading' : 'home.allergies_modal.submit'} fallback={loading ? loadingLabel : submitLabel} tag="span" />
                 </button>
               </div>
             </form>
@@ -390,6 +493,7 @@ interface VenueProps {
   address: string
   time: string
   imageSrc: string
+  imageKey?: string
   mapQuery: string
   googleMapsUrl: string
   appleMapsUrl: string
@@ -397,6 +501,11 @@ interface VenueProps {
   accentBg?: boolean
   mapZoom?: number
   reverseLayout?: boolean
+  layoutKey?: string
+  nameKey?: string
+  addressKey?: string
+  timeKey?: string
+  style?: CSSProperties
 }
 
 function VenueSection({
@@ -405,6 +514,7 @@ function VenueSection({
   address,
   time,
   imageSrc,
+  imageKey,
   mapQuery,
   googleMapsUrl,
   appleMapsUrl,
@@ -412,38 +522,72 @@ function VenueSection({
   accentBg,
   mapZoom,
   reverseLayout = false,
+  layoutKey,
+  nameKey,
+  addressKey,
+  timeKey,
+  style,
 }: VenueProps) {
+  const { isEditMode, getContent, updateContent } = useEditor()
+  const googleMapsLabel = useContent('home.venue_actions.google_maps', copy.home.venueActions.googleMaps)
+  const appleMapsLabel = useContent('home.venue_actions.apple_maps', copy.home.venueActions.appleMaps)
+  const wazeLabel = useContent('home.venue_actions.waze', copy.home.venueActions.waze)
+
+  const effectiveReverse = layoutKey
+    ? getContent(layoutKey, String(reverseLayout)) === 'true'
+    : reverseLayout
+
   return (
-    <ScrollPlane className={`py-20 md:py-28 ${accentBg ? 'bg-accent-light/40' : 'bg-white'}`}>
+    <ScrollPlane style={style} className={`relative py-20 md:py-28 ${accentBg ? 'bg-accent-light/40' : 'bg-white'}`}>
+      {/* Layout flip button — edit mode only */}
+      {isEditMode && layoutKey && (
+        <button
+          type="button"
+          onClick={() => updateContent(layoutKey, String(!effectiveReverse))}
+          className="absolute top-4 right-4 z-10 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-accent-mid/30 rounded-full px-3 py-1.5 text-xs font-medium text-forest shadow-sm hover:bg-accent-light hover:border-accent transition-colors"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
+          </svg>
+          Inverter layout
+        </button>
+      )}
+
       <section id={id} className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
 
         {/* Linha superior: info à esquerda, mapa à direita */}
         <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-stretch mb-6">
 
           {/* Esquerda: título + descrição + endereço */}
-          <FadeUp className={`flex h-full flex-col justify-center ${reverseLayout ? 'md:order-2' : ''}`}>
-            <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-forest mb-5">{name}</h2>
+          <FadeUp className={`flex h-full flex-col justify-center ${effectiveReverse ? 'md:order-2' : ''}`}>
+            <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-forest mb-5">
+              {nameKey ? <EditableText contentKey={nameKey} fallback={name} tag="span" /> : name}
+            </h2>
             <div className="flex items-start gap-3 text-sm text-gray-500 mb-3">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3A9E8F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
                 <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
               </svg>
-              <span>{time}</span>
+              <span>{timeKey ? <EditableText contentKey={timeKey} fallback={time} tag="span" /> : time}</span>
             </div>
             <div className="flex items-start gap-3 text-sm text-gray-500">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3A9E8F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
                 <path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z" /><circle cx="12" cy="10" r="3" />
               </svg>
-              <span>{address}</span>
+              <span>{addressKey ? <EditableText contentKey={addressKey} fallback={address} tag="span" /> : address}</span>
             </div>
             <div className="relative mt-6 overflow-hidden rounded-3xl shadow-xl shadow-forest/10 ring-1 ring-forest/10">
               <div className="aspect-[4/3]">
-                <img src={imageSrc} alt={name} className="h-full w-full object-cover" />
+                {imageKey ? (
+                  <EditableImage contentKey={imageKey} fallback={imageSrc} alt={name} imgClassName="h-full w-full object-cover" />
+                ) : (
+                  <img src={imageSrc} alt={name} className="h-full w-full object-cover" />
+                )}
               </div>
               <div className="absolute inset-0 pointer-events-none rounded-3xl ring-inset ring-1 ring-black/8" />
             </div>
           </FadeUp>
 
-          <FadeUp delay={0.12} className={`h-full ${reverseLayout ? 'md:order-1' : ''}`}>
+          <FadeUp delay={0.12} className={`h-full ${effectiveReverse ? 'md:order-1' : ''}`}>
             <MapCard name={name} mapQuery={mapQuery} zoom={mapZoom} fillHeight />
           </FadeUp>
         </div>
@@ -453,18 +597,18 @@ function VenueSection({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2.5 px-4 py-3.5 rounded-2xl border border-accent-mid/40 bg-white hover:border-accent hover:shadow-md hover:shadow-accent/10 transition-all duration-200">
-                <img src={googleMapsIcon} alt={copy.home.venueActions.googleMaps} className="w-5 h-5 shrink-0" />
-                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">{copy.home.venueActions.googleMaps}</span>
+                <img src={googleMapsIcon} alt={googleMapsLabel} className="w-5 h-5 shrink-0" />
+                <span className="text-sm font-medium text-gray-700 whitespace-nowrap"><EditableText contentKey="home.venue_actions.google_maps" fallback={googleMapsLabel} tag="span" /></span>
               </a>
               <a href={appleMapsUrl} target="_blank" rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2.5 px-4 py-3.5 rounded-2xl border border-accent-mid/40 bg-white hover:border-accent hover:shadow-md hover:shadow-accent/10 transition-all duration-200">
-                <img src={appleMapsIcon} alt={copy.home.venueActions.appleMaps} className="w-5 h-5 shrink-0" />
-                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">{copy.home.venueActions.appleMaps}</span>
+                <img src={appleMapsIcon} alt={appleMapsLabel} className="w-5 h-5 shrink-0" />
+                <span className="text-sm font-medium text-gray-700 whitespace-nowrap"><EditableText contentKey="home.venue_actions.apple_maps" fallback={appleMapsLabel} tag="span" /></span>
               </a>
               <a href={wazeUrl} target="_blank" rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2.5 px-4 py-3.5 rounded-2xl border border-accent-mid/40 bg-white hover:border-accent hover:shadow-md hover:shadow-accent/10 transition-all duration-200">
-                <img src={wazeIcon} alt={copy.home.venueActions.waze} className="w-5 h-5 shrink-0" />
-                <span className="text-sm font-medium text-gray-700 whitespace-nowrap">{copy.home.venueActions.waze}</span>
+                <img src={wazeIcon} alt={wazeLabel} className="w-5 h-5 shrink-0" />
+                <span className="text-sm font-medium text-gray-700 whitespace-nowrap"><EditableText contentKey="home.venue_actions.waze" fallback={wazeLabel} tag="span" /></span>
               </a>
           </div>
         </FadeUp>
@@ -482,9 +626,29 @@ const NAV_ITEMS = [
 ]
 
 export default function Home() {
-  const { days, hours, minutes, seconds } = useCountdown(WEDDING_DATE)
   const [showBoleias, setShowBoleias] = useState(false)
   const [showAlergias, setShowAlergias] = useState(false)
+  const { isEditMode, updateContent, getContent } = useEditor()
+  const listReversed = getContent('home.list.reverse_layout', 'false') === 'true'
+  const heroTag = useContent('home.hero.tag', copy.home.hero.tag)
+  const ceremonyName = useContent('home.venue.ceremony.name', copy.home.venues.ceremony.name)
+  const ceremonyAddress = useContent('home.venue.ceremony.address', copy.home.venues.ceremony.address)
+  const ceremonyTime = useContent('home.venue.ceremony.time', copy.home.venues.ceremony.time)
+  const cocktailName = useContent('home.venue.cocktail.name', copy.home.venues.cocktail.name)
+  const cocktailAddress = useContent('home.venue.cocktail.address', copy.home.venues.cocktail.address)
+  const cocktailTime = useContent('home.venue.cocktail.time', copy.home.venues.cocktail.time)
+  const listCtaLabel = useContent('home.list.cta', copy.home.listSection.cta)
+  const transportCtaLabel = useContent('home.transport.cta', copy.home.transport.cta)
+  const allergiesCtaLabel = useContent('home.allergies.cta', copy.home.allergies.cta)
+  const homeSectionOrder = parseSectionOrder(
+    useContent('layout.home_order', DEFAULT_HOME_SECTION_ORDER.join(',')),
+    DEFAULT_HOME_SECTION_ORDER,
+  )
+  const homeSectionOrderMap = createSectionOrderMap(homeSectionOrder)
+  const weddingTimestamp = parseWeddingTimestamp(heroTag, ceremonyTime)
+  const { days, hours, minutes, seconds } = useCountdown(weddingTimestamp)
+  const ceremonyMaps = buildMapLinks(ceremonyAddress)
+  const cocktailMaps = buildMapLinks(cocktailAddress)
   const { scrollYProgress } = useScroll()
   const heroBackgroundY = useTransform(scrollYProgress, [0, 1], [0, 140])
   const heroPatternY = useTransform(scrollYProgress, [0, 1], [0, 180])
@@ -500,14 +664,14 @@ export default function Home() {
         <motion.div
           style={{
             y: motionValue(heroBackgroundY, 0),
-            background: 'radial-gradient(ellipse 100% 70% at 50% -5%, rgba(58,158,143,0.16) 0%, rgba(107,181,173,0.05) 55%, transparent 72%)',
+            background: 'radial-gradient(ellipse 100% 70% at 50% -5%, color-mix(in srgb, var(--color-accent) 16%, transparent) 0%, color-mix(in srgb, var(--color-sage) 5%, transparent) 55%, transparent 72%)',
           }}
           className="absolute inset-0 pointer-events-none"
         />
         <motion.div
           style={{
             y: motionValue(heroPatternY, 0),
-            backgroundImage: 'repeating-linear-gradient(45deg, #3A9E8F 0, #3A9E8F 1px, transparent 0, transparent 50%)',
+            backgroundImage: 'repeating-linear-gradient(45deg, var(--color-accent) 0, var(--color-accent) 1px, transparent 0, transparent 50%)',
             backgroundSize: '18px 18px',
           }}
           className="absolute inset-0 pointer-events-none opacity-[0.03]"
@@ -530,7 +694,7 @@ export default function Home() {
             })}
             className="text-xs font-medium text-accent mb-8"
           >
-            {copy.home.hero.tag}
+            <EditableText contentKey="home.hero.tag" fallback={copy.home.hero.tag} tag="span" />
           </motion.p>
 
           <motion.div
@@ -542,13 +706,13 @@ export default function Home() {
             className="mx-auto mb-8 flex w-[19rem] items-end justify-center gap-3 sm:mb-10 sm:w-[24rem] md:w-[30rem]"
           >
             <div className="h-32 w-20 overflow-hidden rounded-[1.6rem] border border-white/70 bg-white/80 p-1 shadow-xl shadow-forest/10 sm:h-40 sm:w-24 md:h-52 md:w-32 md:-rotate-6">
-              <img src={heroPhoto} alt="" className="h-full w-full rounded-[1.2rem] object-cover" />
+              <EditableImage contentKey="home.hero.photo_1" fallback={heroPhoto} alt="Leonor e João Maria" imgClassName="h-full w-full rounded-[1.2rem] object-cover" />
             </div>
             <div className="h-40 w-28 overflow-hidden rounded-[2rem] border border-white/70 bg-white/85 p-1.5 shadow-2xl shadow-forest/15 sm:h-52 sm:w-36 md:h-72 md:w-48">
-              <img src={heroPhotoOne} alt="" className="h-full w-full rounded-[1.5rem] object-cover" />
+              <EditableImage contentKey="home.hero.photo_2" fallback={heroPhotoOne} alt="Leonor e João Maria" imgClassName="h-full w-full rounded-[1.5rem] object-cover" />
             </div>
             <div className="h-28 w-[4.5rem] overflow-hidden rounded-[1.4rem] border border-white/70 bg-white/80 p-1 shadow-xl shadow-forest/10 sm:h-36 sm:w-24 md:h-48 md:w-[7.5rem] md:rotate-6">
-              <img src={heroPhotoFour} alt="" className="h-full w-full rounded-[1rem] object-cover" />
+              <EditableImage contentKey="home.hero.photo_3" fallback={heroPhotoFour} alt="Leonor e João Maria" imgClassName="h-full w-full rounded-[1rem] object-cover" />
             </div>
           </motion.div>
 
@@ -561,7 +725,7 @@ export default function Home() {
             })}
             className="font-serif text-[2.8rem] sm:text-5xl md:text-[6.8rem] leading-[0.92] text-forest mb-8 md:mb-10 text-balance md:whitespace-nowrap"
           >
-            {copy.home.coupleName}
+            <EditableText contentKey="home.hero.couple_name" fallback={copy.home.coupleName} tag="span" />
           </motion.h1>
 
           {/* Locais */}
@@ -577,16 +741,16 @@ export default function Home() {
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z" /><circle cx="12" cy="10" r="3" />
               </svg>
-              <span className="text-xs uppercase tracking-wider">{copy.home.locations.churchLabel}</span>
+              <span className="text-xs uppercase tracking-wider"><EditableText contentKey="home.hero.church_label" fallback={copy.home.locations.churchLabel} tag="span" /></span>
               <span className="text-accent-mid">·</span>
-              <span>{copy.home.locations.churchName}</span>
+              <span><EditableText contentKey="home.venue.ceremony.name" fallback={copy.home.locations.churchName} tag="span" /></span>
             </div>
             <div className="hidden sm:block w-px h-4 bg-accent-mid/40" />
             <div className="flex items-center justify-center gap-2 text-sm text-sage text-center">
               <img src={cocktailIcon} alt="" className="h-[13px] w-[13px] object-contain" />
-              <span className="text-xs uppercase tracking-wider">{copy.home.locations.cocktailLabel}</span>
+              <span className="text-xs uppercase tracking-wider"><EditableText contentKey="home.hero.cocktail_label" fallback={copy.home.locations.cocktailLabel} tag="span" /></span>
               <span className="text-accent-mid">·</span>
-              <span>{copy.home.locations.cocktailName}</span>
+              <span><EditableText contentKey="home.venue.cocktail.name" fallback={copy.home.locations.cocktailName} tag="span" /></span>
             </div>
           </motion.div>
 
@@ -623,74 +787,101 @@ export default function Home() {
       </section>
 
       {/* ── Contagem ─────────────────────────────────────────────────────── */}
-      <ScrollPlane className="py-20 md:py-24 bg-accent-light/40 relative overflow-hidden">
+      <div className="flex flex-col">
+      <ScrollPlane style={{ order: homeSectionOrderMap.countdown }} className="py-20 md:py-24 bg-accent-light/40 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse 50% 100% at 100% 50%, rgba(58,158,143,0.1) 0%, transparent 60%)' }} />
+          style={{ background: 'radial-gradient(ellipse 50% 100% at 100% 50%, color-mix(in srgb, var(--color-accent) 10%, transparent) 0%, transparent 60%)' }} />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 relative">
           <FadeUp className="text-center mb-12">
-            <p className="text-xs uppercase tracking-widest text-accent font-medium">{copy.home.countdown.title}</p>
+            <p className="text-xs uppercase tracking-widest text-accent font-medium">
+              <EditableText contentKey="home.countdown.title" fallback={copy.home.countdown.title} tag="span" />
+            </p>
           </FadeUp>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
-            <CountUnit value={days} label={copy.home.countdown.days} />
-            <CountUnit value={hours} label={copy.home.countdown.hours} />
-            <CountUnit value={minutes} label={copy.home.countdown.minutes} />
-            <CountUnit value={seconds} label={copy.home.countdown.seconds} />
+            <CountUnit value={days} label={copy.home.countdown.days} contentKey="home.countdown.days" />
+            <CountUnit value={hours} label={copy.home.countdown.hours} contentKey="home.countdown.hours" />
+            <CountUnit value={minutes} label={copy.home.countdown.minutes} contentKey="home.countdown.minutes" />
+            <CountUnit value={seconds} label={copy.home.countdown.seconds} contentKey="home.countdown.seconds" />
           </div>
         </div>
       </ScrollPlane>
 
       {/* ── Cerimónia ────────────────────────────────────────────────────── */}
       <VenueSection
+        style={{ order: homeSectionOrderMap.ceremony }}
         id="cerimonia"
         sectionLabel={copy.home.venues.ceremony.sectionLabel}
-        name={copy.home.venues.ceremony.name}
-        address={copy.home.venues.ceremony.address}
-        time={copy.home.venues.ceremony.time}
+        name={ceremonyName}
+        address={ceremonyAddress}
+        time={ceremonyTime}
         imageSrc={ceremonyVenueImage}
-        mapQuery={copy.home.venues.ceremony.mapQuery}
-        googleMapsUrl={copy.home.venues.ceremony.googleMapsUrl}
-        appleMapsUrl={copy.home.venues.ceremony.appleMapsUrl}
-        wazeUrl={copy.home.venues.ceremony.wazeUrl}
+        imageKey="home.venue.ceremony.image"
+        mapQuery={ceremonyMaps.mapQuery}
+        googleMapsUrl={ceremonyMaps.googleMapsUrl}
+        appleMapsUrl={ceremonyMaps.appleMapsUrl}
+        wazeUrl={ceremonyMaps.wazeUrl}
         mapZoom={17}
+        layoutKey="home.venue.ceremony.reverse_layout"
+        nameKey="home.venue.ceremony.name"
+        addressKey="home.venue.ceremony.address"
+        timeKey="home.venue.ceremony.time"
       />
 
       {/* ── Cocktail ─────────────────────────────────────────────────────── */}
       <VenueSection
+        style={{ order: homeSectionOrderMap.cocktail }}
         id="cocktail"
         sectionLabel={copy.home.venues.cocktail.sectionLabel}
-        name={copy.home.venues.cocktail.name}
-        address={copy.home.venues.cocktail.address}
-        time={copy.home.venues.cocktail.time}
+        name={cocktailName}
+        address={cocktailAddress}
+        time={cocktailTime}
         imageSrc={cocktailVenueImage}
-        mapQuery={copy.home.venues.cocktail.mapQuery}
-        googleMapsUrl={copy.home.venues.cocktail.googleMapsUrl}
-        appleMapsUrl={copy.home.venues.cocktail.appleMapsUrl}
-        wazeUrl={copy.home.venues.cocktail.wazeUrl}
+        imageKey="home.venue.cocktail.image"
+        mapQuery={cocktailMaps.mapQuery}
+        googleMapsUrl={cocktailMaps.googleMapsUrl}
+        appleMapsUrl={cocktailMaps.appleMapsUrl}
+        wazeUrl={cocktailMaps.wazeUrl}
         accentBg
         mapZoom={15}
         reverseLayout
+        layoutKey="home.venue.cocktail.reverse_layout"
+        nameKey="home.venue.cocktail.name"
+        addressKey="home.venue.cocktail.address"
+        timeKey="home.venue.cocktail.time"
       />
 
       {/* ── Lista de Presentes ───────────────────────────────────────────── */}
-      <section id="lista" className="relative overflow-hidden bg-[linear-gradient(180deg,_#f9fcfb_0%,_#edf6f4_100%)] py-20 md:py-28">
+      <section id="lista" style={{ order: homeSectionOrderMap.list, background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-accent-light) 20%, white) 0%, color-mix(in srgb, var(--color-accent-light) 70%, white) 100%)' }} className="relative overflow-hidden py-20 md:py-28">
         <div className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse 70% 80% at 85% 40%, rgba(107,181,173,0.14) 0%, transparent 55%)' }} />
+          style={{ background: 'radial-gradient(ellipse 70% 80% at 85% 40%, color-mix(in srgb, var(--color-sage) 14%, transparent) 0%, transparent 55%)' }} />
         <div className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse 40% 50% at 10% 70%, rgba(58,158,143,0.08) 0%, transparent 50%)' }} />
+          style={{ background: 'radial-gradient(ellipse 40% 50% at 10% 70%, color-mix(in srgb, var(--color-accent) 8%, transparent) 0%, transparent 50%)' }} />
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
+          {isEditMode && (
+            <button
+              type="button"
+              onClick={() => updateContent('home.list.reverse_layout', String(!listReversed))}
+              className="absolute top-0 right-0 z-10 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-accent-mid/30 rounded-full px-3 py-1.5 text-xs font-medium text-forest shadow-sm hover:bg-accent-light hover:border-accent transition-colors"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
+              </svg>
+              Inverter layout
+            </button>
+          )}
           <div className="grid items-center gap-10 md:grid-cols-[0.95fr_1.05fr] md:gap-14">
-            <FadeUp className="max-w-xl">
-              <p className="mb-4 text-xs uppercase tracking-widest text-accent">{copy.home.listSection.tag}</p>
+            <FadeUp className={`max-w-xl ${listReversed ? 'md:order-2' : ''}`}>
+              <p className="mb-4 text-xs uppercase tracking-widest text-accent"><EditableText contentKey="home.list.tag" fallback={copy.home.listSection.tag} tag="span" /></p>
               <h2 className="mb-6 font-serif text-3xl leading-tight text-forest sm:text-4xl md:text-5xl">
-                {copy.home.listSection.title}
+                <EditableText contentKey="home.list.title" fallback={copy.home.listSection.title} tag="span" />
               </h2>
               <p className="max-w-lg text-sm leading-relaxed text-gray-500">
-                {copy.home.listSection.description}
+                <EditableText contentKey="home.list.description" fallback={copy.home.listSection.description} tag="span" multiline />
               </p>
               <div className="mt-8 flex">
                 <Link to="/lista"
                   className="group inline-flex w-full items-center justify-center gap-3 rounded-full bg-forest px-8 py-4 text-sm font-medium text-white shadow-xl shadow-forest/15 transition-all duration-300 hover:bg-accent-dark sm:w-auto">
-                  {copy.home.listSection.cta}
+                  <EditableText contentKey="home.list.cta" fallback={listCtaLabel} tag="span" />
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
                     className="group-hover:translate-x-1 transition-transform duration-300">
                     <path d="M5 12h14M12 5l7 7-7 7" />
@@ -698,10 +889,10 @@ export default function Home() {
                 </Link>
               </div>
             </FadeUp>
-            <FadeUp delay={0.15}>
-              <div className="relative overflow-hidden rounded-[32px] shadow-[0_28px_70px_-30px_rgba(12,61,53,0.22)] ring-1 ring-accent-mid/20">
+            <FadeUp delay={0.15} className={listReversed ? 'md:order-1' : ''}>
+              <div className="relative overflow-hidden rounded-[32px] shadow-[0_28px_70px_-30px_color-mix(in_srgb,var(--color-forest)_22%,transparent)] ring-1 ring-accent-mid/20">
                 <div className="aspect-[4/3]">
-                  <img src={listSectionImage} alt={copy.home.listSection.imageAlt} className="h-full w-full object-cover" />
+                  <EditableImage contentKey="home.list.image" fallback={listSectionImage} alt={copy.home.listSection.imageAlt} imgClassName="h-full w-full object-cover" />
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-white/8 via-transparent to-transparent" />
               </div>
@@ -711,20 +902,20 @@ export default function Home() {
       </section>
 
       {/* ── Informações Úteis ───────────────────────────────────────────── */}
-      <section id="transportes" className="py-18 md:py-24 bg-accent-light/25">
+      <section id="transportes" style={{ order: homeSectionOrderMap.info }} className="py-18 md:py-24 bg-accent-light/25">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
           <div className="grid items-stretch gap-10 md:grid-cols-2 md:gap-16">
             <FadeUp className="flex min-h-full flex-col rounded-[28px] border border-accent-mid/20 bg-white/80 p-6 sm:p-7 md:rounded-none md:border-0 md:bg-transparent md:p-0">
-              <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.28em] text-accent/80">{copy.home.transport.tag}</p>
-              <h2 className="mb-5 font-serif text-2xl leading-tight text-forest sm:text-[2rem]">{copy.home.transport.title}</h2>
+              <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.28em] text-accent/80"><EditableText contentKey="home.transport.tag" fallback={copy.home.transport.tag} tag="span" /></p>
+              <h2 className="mb-5 font-serif text-2xl leading-tight text-forest sm:text-[2rem]"><EditableText contentKey="home.transport.title" fallback={copy.home.transport.title} tag="span" /></h2>
               <p className="max-w-md text-gray-500 text-sm leading-relaxed">
-                {copy.home.transport.description}
+                <EditableText contentKey="home.transport.description" fallback={copy.home.transport.description} tag="span" multiline />
               </p>
               <button
                 onClick={() => setShowBoleias(true)}
                 className="group mt-12 inline-flex w-full self-start items-center justify-center gap-2.5 rounded-full border border-accent-mid/40 bg-transparent px-6 py-3 text-sm font-medium text-accent-dark transition-all duration-300 hover:border-accent/40 hover:bg-white/60 sm:w-auto"
               >
-                {copy.home.transport.cta}
+                <EditableText contentKey="home.transport.cta" fallback={transportCtaLabel} tag="span" />
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
                   className="group-hover:translate-x-0.5 transition-transform duration-300">
                   <path d="M5 12h14M12 5l7 7-7 7" />
@@ -733,16 +924,16 @@ export default function Home() {
             </FadeUp>
 
             <FadeUp delay={0.08} className="flex min-h-full flex-col rounded-[28px] border border-accent-mid/20 bg-white/80 p-6 sm:p-7 md:rounded-none md:border-0 md:bg-transparent md:p-0">
-              <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.28em] text-accent/80">{copy.home.allergies.tag}</p>
-              <h2 className="mb-5 font-serif text-2xl leading-tight text-forest sm:text-[2rem]">{copy.home.allergies.title}</h2>
+              <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.28em] text-accent/80"><EditableText contentKey="home.allergies.tag" fallback={copy.home.allergies.tag} tag="span" /></p>
+              <h2 className="mb-5 font-serif text-2xl leading-tight text-forest sm:text-[2rem]"><EditableText contentKey="home.allergies.title" fallback={copy.home.allergies.title} tag="span" /></h2>
               <p className="max-w-md text-gray-500 text-sm leading-relaxed">
-                {copy.home.allergies.description}
+                <EditableText contentKey="home.allergies.description" fallback={copy.home.allergies.description} tag="span" multiline />
               </p>
               <button
                 onClick={() => setShowAlergias(true)}
                 className="group mt-12 inline-flex w-full self-start items-center justify-center gap-2.5 rounded-full border border-accent-mid/40 bg-transparent px-6 py-3 text-sm font-medium text-accent-dark transition-all duration-300 hover:border-accent/40 hover:bg-white/60 sm:w-auto"
               >
-                {copy.home.allergies.cta}
+                <EditableText contentKey="home.allergies.cta" fallback={allergiesCtaLabel} tag="span" />
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
                   className="group-hover:translate-x-0.5 transition-transform duration-300">
                   <path d="M5 12h14M12 5l7 7-7 7" />
@@ -754,10 +945,11 @@ export default function Home() {
       </section>
 
       {/* ── Rodapé ───────────────────────────────────────────────────────── */}
+      </div>
       <footer className="py-10 bg-forest border-t border-white/5">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0 text-center sm:text-left">
-          <p className="font-serif text-lg text-accent-mid">{copy.navbar.brand}</p>
-          <p className="text-xs uppercase tracking-widest text-sage/60">{copy.home.footer.date}</p>
+          <p className="font-serif text-lg text-accent-mid"><EditableText contentKey="navbar.brand" fallback={copy.navbar.brand} tag="span" /></p>
+          <p className="text-xs uppercase tracking-widest text-sage/60"><EditableText contentKey="home.footer.date" fallback={copy.home.footer.date} tag="span" /></p>
         </div>
       </footer>
 

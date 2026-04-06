@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { MOTION_EASE, motionProps } from '../lib/motion'
 import { copy } from '../lib/i18n'
+import { EditableText } from './editor'
 
 export default function Navbar() {
   const location = useLocation()
@@ -20,7 +21,7 @@ export default function Navbar() {
       })}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-700 ${
         scrolled
-          ? 'bg-white/85 backdrop-blur-xl border-b border-accent-mid/30 shadow-sm shadow-accent/5'
+          ? 'bg-white/92 backdrop-blur-xl border-b border-accent-mid/30 shadow-sm shadow-accent/5'
           : 'bg-transparent'
       }`}
     >
@@ -29,13 +30,13 @@ export default function Navbar() {
           to="/"
           className="font-serif text-base sm:text-xl tracking-[0.14em] sm:tracking-[0.18em] text-gray-900 hover:text-accent transition-colors duration-500 shrink-0"
         >
-          {copy.navbar.brand}
+          <EditableText contentKey="navbar.brand" fallback={copy.navbar.brand} tag="span" className="font-serif text-base sm:text-xl tracking-[0.14em] sm:tracking-[0.18em]" />
         </Link>
 
         <nav className="flex items-center gap-4 sm:gap-8 min-w-0">
           <Link
             to="/"
-            className={`relative text-xs sm:text-sm font-medium tracking-wide transition-colors duration-300 after:absolute after:left-0 after:-bottom-1.5 after:h-px after:w-full after:origin-left after:bg-current after:transition-transform after:duration-500 ${
+            className={`relative inline-flex items-center px-1.5 py-2 text-xs sm:text-sm font-semibold tracking-wide transition-colors duration-300 after:absolute after:left-1.5 after:right-1.5 after:-bottom-0.5 after:h-px after:origin-left after:bg-current after:transition-transform after:duration-500 ${
               location.pathname === '/' ? 'text-accent after:scale-x-100' : 'text-gray-500 hover:text-gray-900 after:scale-x-0 hover:after:scale-x-100'
             }`}
           >
@@ -43,7 +44,7 @@ export default function Navbar() {
           </Link>
           <Link
             to="/lista"
-            className={`relative text-xs sm:text-sm font-medium tracking-wide transition-colors duration-300 after:absolute after:left-0 after:-bottom-1.5 after:h-px after:w-full after:origin-left after:bg-current after:transition-transform after:duration-500 ${
+            className={`relative inline-flex items-center px-1.5 py-2 text-xs sm:text-sm font-semibold tracking-wide transition-colors duration-300 after:absolute after:left-1.5 after:right-1.5 after:-bottom-0.5 after:h-px after:origin-left after:bg-current after:transition-transform after:duration-500 ${
               location.pathname === '/lista' ? 'text-accent after:scale-x-100' : 'text-gray-500 hover:text-gray-900 after:scale-x-0 hover:after:scale-x-100'
             }`}
           >
