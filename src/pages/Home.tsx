@@ -649,6 +649,12 @@ export default function Home() {
   const { days, hours, minutes, seconds } = useCountdown(weddingTimestamp)
   const ceremonyMaps = buildMapLinks(ceremonyAddress)
   const cocktailMaps = buildMapLinks(cocktailAddress)
+  const ceremonyGmaps = useContent('home.venue.ceremony.gmaps', ceremonyMaps.googleMapsUrl)
+  const ceremonyApple = useContent('home.venue.ceremony.apple', ceremonyMaps.appleMapsUrl)
+  const ceremonyWaze = useContent('home.venue.ceremony.waze', ceremonyMaps.wazeUrl)
+  const cocktailGmaps = useContent('home.venue.cocktail.gmaps', cocktailMaps.googleMapsUrl)
+  const cocktailApple = useContent('home.venue.cocktail.apple', cocktailMaps.appleMapsUrl)
+  const cocktailWaze = useContent('home.venue.cocktail.waze', cocktailMaps.wazeUrl)
   const { scrollYProgress } = useScroll()
   const heroBackgroundY = useTransform(scrollYProgress, [0, 1], [0, 140])
   const heroPatternY = useTransform(scrollYProgress, [0, 1], [0, 180])
@@ -816,10 +822,10 @@ export default function Home() {
         time={ceremonyTime}
         imageSrc={ceremonyVenueImage}
         imageKey="home.venue.ceremony.image"
-        mapQuery={ceremonyMaps.mapQuery}
-        googleMapsUrl={ceremonyMaps.googleMapsUrl}
-        appleMapsUrl={ceremonyMaps.appleMapsUrl}
-        wazeUrl={ceremonyMaps.wazeUrl}
+        mapQuery={`${ceremonyName}, ${ceremonyAddress}`}
+        googleMapsUrl={ceremonyGmaps}
+        appleMapsUrl={ceremonyApple}
+        wazeUrl={ceremonyWaze}
         mapZoom={17}
         layoutKey="home.venue.ceremony.reverse_layout"
         nameKey="home.venue.ceremony.name"
@@ -837,10 +843,10 @@ export default function Home() {
         time={cocktailTime}
         imageSrc={cocktailVenueImage}
         imageKey="home.venue.cocktail.image"
-        mapQuery={cocktailMaps.mapQuery}
-        googleMapsUrl={cocktailMaps.googleMapsUrl}
-        appleMapsUrl={cocktailMaps.appleMapsUrl}
-        wazeUrl={cocktailMaps.wazeUrl}
+        mapQuery={`${cocktailName}, ${cocktailAddress}`}
+        googleMapsUrl={cocktailGmaps}
+        appleMapsUrl={cocktailApple}
+        wazeUrl={cocktailWaze}
         accentBg
         mapZoom={15}
         reverseLayout
