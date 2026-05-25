@@ -1,14 +1,15 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
-import type { Session } from '@supabase/supabase-js'
-import { supabase, type Alergia, type Boleia, type Gift } from '../lib/supabase'
+import { auth, db, storage, type Alergia, type Boleia, type Gift } from '../lib/firebase'
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, type User } from 'firebase/auth'
+import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, orderBy, query, serverTimestamp } from 'firebase/firestore'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { MOTION_EASE, motionProps, presenceProps } from '../lib/motion'
 import { copy } from '../lib/i18n'
 import { useNavigate } from 'react-router-dom'
 import { useEditor } from '../components/editor'
 import { CONTENT_DEFAULTS } from '../lib/siteContent'
 
-const ADMIN_USER_ID = '0b9c93dd-17a2-4943-befd-968943ba432f'
 interface ContribRow {
   id: string
   gift_id: string
@@ -54,8 +55,6 @@ const formatDate = (value: string) =>
     year: 'numeric',
   })
 
-const MAX_IMAGE_DIMENSION = 1600
-const MAX_IMAGE_BYTES = 900_000
 const HOME_SECTION_LABELS: Record<string, string> = {
   countdown: 'Contagem',
   ceremony: 'Cerimonia',
@@ -86,71 +85,14 @@ const moveItem = (items: string[], index: number, direction: -1 | 1) => {
   return next
 }
 
-const loadImageElement = (file: File) =>
-  new Promise<HTMLImageElement>((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file)
-    const image = new Image()
-
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl)
-      resolve(image)
-    }
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
-      reject(new Error(copy.admin.errors.imageRead))
-    }
-    image.src = objectUrl
-  })
-
-const canvasToDataUrl = (canvas: HTMLCanvasElement, quality: number) =>
-  canvas.toDataURL('image/webp', quality)
-
-const approximateBase64Bytes = (dataUrl: string) => {
-  const base64 = dataUrl.split(',')[1] ?? ''
-  return Math.ceil((base64.length * 3) / 4)
+const uploadGiftImage = async (file: File): Promise<string> => {
+  const ext = file.name.split('.').pop() ?? 'jpg'
+  const path = `gifts/${Date.now()}.${ext}`
+  const storageRef = ref(storage, path)
+  await uploadBytes(storageRef, file)
+  return getDownloadURL(storageRef)
 }
 
-const readFileAsDataUrl = async (file: File) => {
-  const image = await loadImageElement(file)
-  const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.width, image.height))
-  const width = Math.max(1, Math.round(image.width * scale))
-  const height = Math.max(1, Math.round(image.height * scale))
-  const canvas = document.createElement('canvas')
-  const context = canvas.getContext('2d')
-
-  if (!context) {
-    throw new Error(copy.admin.errors.imageProcess)
-  }
-
-  canvas.width = width
-  canvas.height = height
-  context.drawImage(image, 0, 0, width, height)
-
-  const qualities = [0.82, 0.72, 0.62, 0.52, 0.42]
-  let best = canvasToDataUrl(canvas, qualities[0])
-
-  for (const quality of qualities) {
-    const candidate = canvasToDataUrl(canvas, quality)
-    best = candidate
-
-    if (approximateBase64Bytes(candidate) <= MAX_IMAGE_BYTES) {
-      return candidate
-    }
-  }
-
-  if (approximateBase64Bytes(best) > MAX_IMAGE_BYTES) {
-    throw new Error(copy.admin.errors.imageTooLarge)
-  }
-
-  return best
-}
-
-const formatSupabaseError = (message?: string) => {
-  if (!message) return copy.admin.errors.saveError
-  if (message.toLowerCase().includes('row-level security')) return copy.admin.errors.noPermissionGift
-  if (message.toLowerCase().includes('payload')) return copy.admin.errors.imageTooLarge
-  return message
-}
 
 const CSV_TEMPLATE = [
   ['name', 'description', 'price', 'image_url'],
@@ -306,8 +248,11 @@ function LoginForm() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password })
-    if (err) setError(copy.admin.login.invalidCredentials)
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+    } catch {
+      setError(copy.admin.login.invalidCredentials)
+    }
     setLoading(false)
   }
 
@@ -377,7 +322,7 @@ function GiftFormModal({
   const [description, setDescription] = useState(gift?.description ?? '')
   const [price, setPrice] = useState(gift?.price?.toString() ?? '')
   const [imageUrl, setImageUrl] = useState(gift?.image_url ?? '')
-  const [imageSource, setImageSource] = useState<'url' | 'upload'>(gift?.image_url?.startsWith('data:') ? 'upload' : 'url')
+  const [imageSource, setImageSource] = useState<'url' | 'upload'>('url')
   const [mode, setMode] = useState<'single' | 'csv'>('single')
   const [uploadingImage, setUploadingImage] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -401,8 +346,8 @@ function GiftFormModal({
     try {
       setUploadingImage(true)
       setError('')
-      const dataUrl = await readFileAsDataUrl(file)
-      setImageUrl(dataUrl)
+      const url = await uploadGiftImage(file)
+      setImageUrl(url)
     } catch (err) {
       setError(err instanceof Error ? err.message : copy.admin.giftForm.fields.loadImageError)
     } finally {
@@ -424,18 +369,21 @@ function GiftFormModal({
       image_url: imageUrl.trim() || null,
     }
 
-    const result = isEdit
-      ? await supabase.from('gifts').update(data).eq('id', gift.id).select().single()
-      : await supabase.from('gifts').insert(data).select().single()
-
-    if (result.error) {
-      setError(formatSupabaseError(result.error.message))
+    try {
+      let savedGift: Gift
+      if (isEdit) {
+        await updateDoc(doc(db, 'gifts', gift.id), data)
+        savedGift = { ...gift, ...data }
+      } else {
+        const docRef = await addDoc(collection(db, 'gifts'), { ...data, created_at: serverTimestamp() })
+        savedGift = { id: docRef.id, ...data, created_at: new Date().toISOString() } as Gift
+      }
+      onSaved([savedGift])
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao guardar.')
       setLoading(false)
-      return
     }
-
-    onSaved([result.data as Gift])
-    onClose()
   }
 
   const handleCsvFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -480,17 +428,19 @@ function GiftFormModal({
     setLoading(true)
     setError('')
 
-    const result = await supabase.from('gifts').insert(csvRows).select()
-
-    if (result.error) {
-      setError(formatSupabaseError(result.error.message))
+    try {
+      const savedGifts: Gift[] = []
+      for (const row of csvRows) {
+        const docRef = await addDoc(collection(db, 'gifts'), { ...row, created_at: serverTimestamp() })
+        savedGifts.push({ id: docRef.id, ...row, created_at: new Date().toISOString() } as Gift)
+      }
       setLoading(false)
-      return
+      onSaved(savedGifts)
+      onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao importar.')
+      setLoading(false)
     }
-
-    setLoading(false)
-    onSaved((result.data ?? []) as Gift[])
-    onClose()
   }
 
   return (
@@ -654,7 +604,7 @@ function GiftFormModal({
                   type="button"
                   onClick={() => {
                     setImageSource('url')
-                    if (imageUrl.startsWith('data:')) setImageUrl('')
+                    setImageUrl('')
                   }}
                   className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
                     imageSource === 'url'
@@ -680,7 +630,7 @@ function GiftFormModal({
 
             {imageSource === 'url' ? (
               <input
-                value={imageUrl.startsWith('data:') ? '' : imageUrl}
+                value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
                 placeholder={copy.admin.giftForm.fields.imageUrlPlaceholder}
                 className="w-full rounded-xl border border-accent-mid/40 bg-accent-light/40 px-4 py-3 text-sm outline-none transition-all focus:border-accent focus:ring-2 focus:ring-accent/10"
@@ -786,16 +736,17 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
   const loadData = async (showLoader = false) => {
     if (showLoader) setLoading(true)
 
-    const [giftsRes, contribsRes, alergiasRes, boleiasRes] = await Promise.all([
-      supabase.from('gifts').select('*').order('created_at', { ascending: false }),
-      supabase.from('gift_contributions').select('*').order('created_at', { ascending: false }),
-      supabase.from('alergias').select('*').order('created_at', { ascending: false }),
-      supabase.from('boleias').select('*').order('created_at', { ascending: false }),
-    ])
+    try {
+      const [giftsSnap, contribsSnap, alergiasSnap, boleiasSnap] = await Promise.all([
+        getDocs(query(collection(db, 'gifts'), orderBy('created_at', 'desc'))),
+        getDocs(query(collection(db, 'gift_contributions'), orderBy('created_at', 'desc'))),
+        getDocs(query(collection(db, 'alergias'), orderBy('created_at', 'desc'))),
+        getDocs(query(collection(db, 'boleias'), orderBy('created_at', 'desc'))),
+      ])
 
-    if (!giftsRes.error && giftsRes.data) {
-      const contribs = (contribsRes.data ?? []) as ContribRow[]
-      const rows: GiftRow[] = giftsRes.data.map((g) => {
+      const contribs = contribsSnap.docs.map((d) => ({ id: d.id, ...d.data() } as ContribRow))
+      const rows: GiftRow[] = giftsSnap.docs.map((d) => {
+        const g = { id: d.id, ...d.data() } as Gift
         const giftContribs = contribs.filter((c) => c.gift_id === g.id)
         return {
           ...g,
@@ -804,14 +755,10 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
         }
       })
       setGifts(rows)
-    }
-
-    if (!alergiasRes.error && alergiasRes.data) {
-      setAlergias(alergiasRes.data as AlergiaRow[])
-    }
-
-    if (!boleiasRes.error && boleiasRes.data) {
-      setBoleias(boleiasRes.data as BoleiaRow[])
+      setAlergias(alergiasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as AlergiaRow)))
+      setBoleias(boleiasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as BoleiaRow)))
+    } catch {
+      // silently fail
     }
 
     setLoading(false)
@@ -832,12 +779,12 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
     setDeleting(true)
     setActionError('')
     const currentDeleteId = deleteId
-    const { error } = await supabase.from('gifts').delete().eq('id', currentDeleteId)
-    if (error) {
-      setActionError(error.message)
-    } else {
+    try {
+      await deleteDoc(doc(db, 'gifts', currentDeleteId))
       setGifts((prev) => prev.filter((g) => g.id !== currentDeleteId))
       setDeleteId(null)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Erro ao eliminar.')
     }
     setDeleting(false)
   }
@@ -847,25 +794,18 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
     setDeletingContribution(true)
     setActionError('')
     const currentDeleteId = deleteContributionId
-    const { error } = await supabase.from('gift_contributions').delete().eq('id', currentDeleteId)
-    if (error) {
-      setActionError(error.message)
-    } else {
+    try {
+      await deleteDoc(doc(db, 'gift_contributions', currentDeleteId))
       setGifts((prev) =>
         prev.map((gift) => {
           if (gift.id !== giftId) return gift
-
-          const contributions = gift.contributions.filter((contribution) => contribution.id !== currentDeleteId)
-          const totalContributed = contributions.reduce((sum, contribution) => sum + Number(contribution.amount), 0)
-
-          return {
-            ...gift,
-            contributions,
-            total_contributed: totalContributed,
-          }
+          const contributions = gift.contributions.filter((c) => c.id !== currentDeleteId)
+          return { ...gift, contributions, total_contributed: contributions.reduce((s, c) => s + Number(c.amount), 0) }
         }),
       )
       setDeleteContributionId(null)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Erro ao eliminar.')
     }
     setDeletingContribution(false)
   }
@@ -891,39 +831,23 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
     const updatedAmount = Number(editContributionAmount)
     const updatedName = editContributionName.trim()
 
-    const { error } = await supabase
-      .from('gift_contributions')
-      .update({
+    try {
+      await updateDoc(doc(db, 'gift_contributions', editContributionId), {
         contributor_name: updatedName,
         amount: updatedAmount,
       })
-      .eq('id', editContributionId)
-
-    if (!error) {
       setGifts((prev) =>
         prev.map((gift) => {
           if (gift.id !== giftId) return gift
-
-          const contributions = gift.contributions.map((contribution) =>
-            contribution.id === editContributionId
-              ? {
-                  ...contribution,
-                  contributor_name: updatedName,
-                  amount: updatedAmount,
-                }
-              : contribution,
+          const contributions = gift.contributions.map((c) =>
+            c.id === editContributionId ? { ...c, contributor_name: updatedName, amount: updatedAmount } : c,
           )
-
-          return {
-            ...gift,
-            contributions,
-            total_contributed: contributions.reduce((sum, contribution) => sum + Number(contribution.amount), 0),
-          }
+          return { ...gift, contributions, total_contributed: contributions.reduce((s, c) => s + Number(c.amount), 0) }
         }),
       )
       handleCancelEditContribution()
-    } else {
-      setActionError(error.message)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Erro ao guardar.')
     }
 
     setSavingContribution(false)
@@ -957,31 +881,16 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
     const updatedNome = editAlergiaNome.trim()
     const updatedNotas = editAlergiaNotas.trim() || null
 
-    const { error } = await supabase
-      .from('alergias')
-      .update({
-        nome: updatedNome,
-        restricoes,
-        notas: updatedNotas,
-      })
-      .eq('id', editAlergiaId)
-
-    if (!error) {
+    try {
+      await updateDoc(doc(db, 'alergias', editAlergiaId), { nome: updatedNome, restricoes, notas: updatedNotas })
       setAlergias((prev) =>
         prev.map((entry) =>
-          entry.id === editAlergiaId
-            ? {
-                ...entry,
-                nome: updatedNome,
-                restricoes,
-                notas: updatedNotas,
-              }
-            : entry,
+          entry.id === editAlergiaId ? { ...entry, nome: updatedNome, restricoes, notas: updatedNotas } : entry,
         ),
       )
       handleCancelEditAlergia()
-    } else {
-      setActionError(error.message)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Erro ao guardar.')
     }
 
     setSavingAlergia(false)
@@ -992,12 +901,12 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
     setDeletingAlergia(true)
     setActionError('')
     const currentDeleteId = deleteAlergiaId
-    const { error } = await supabase.from('alergias').delete().eq('id', currentDeleteId)
-    if (!error) {
+    try {
+      await deleteDoc(doc(db, 'alergias', currentDeleteId))
       setAlergias((prev) => prev.filter((entry) => entry.id !== currentDeleteId))
       setDeleteAlergiaId(null)
-    } else {
-      setActionError(error.message)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Erro ao eliminar.')
     }
     setDeletingAlergia(false)
   }
@@ -1032,18 +941,14 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
     const updatedSentido = editBoleiaSentido.trim()
     const updatedNotas = editBoleiaNotas.trim() || null
 
-    const { error } = await supabase
-      .from('boleias')
-      .update({
+    try {
+      await updateDoc(doc(db, 'boleias', editBoleiaId), {
         nome: updatedNome,
         telefone: updatedTelefone,
         lugares: updatedLugares,
         sentido: updatedSentido,
         notas: updatedNotas,
       })
-      .eq('id', editBoleiaId)
-
-    if (!error) {
       setBoleias((prev) =>
         prev.map((entry) =>
           entry.id === editBoleiaId
@@ -1059,8 +964,8 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
         ),
       )
       handleCancelEditBoleia()
-    } else {
-      setActionError(error.message)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Erro ao guardar.')
     }
 
     setSavingBoleia(false)
@@ -1071,12 +976,12 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
     setDeletingBoleia(true)
     setActionError('')
     const currentDeleteId = deleteBoleiaId
-    const { error } = await supabase.from('boleias').delete().eq('id', currentDeleteId)
-    if (!error) {
+    try {
+      await deleteDoc(doc(db, 'boleias', currentDeleteId))
       setBoleias((prev) => prev.filter((entry) => entry.id !== currentDeleteId))
       setDeleteBoleiaId(null)
-    } else {
-      setActionError(error.message)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Erro ao eliminar.')
     }
     setDeletingBoleia(false)
   }
@@ -1965,27 +1870,27 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
 }
 
 export default function Admin() {
-  const [session, setSession] = useState<Session | null>(null)
+  const [user, setUser] = useState<User | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser)
+      if (currentUser) {
+        const token = await currentUser.getIdTokenResult()
+        setIsAdmin(token.claims['admin'] === true)
+      } else {
+        setIsAdmin(false)
+      }
       setChecking(false)
     })
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_, currentSession) => setSession(currentSession))
-
-    return () => subscription.unsubscribe()
+    return unsubscribe
   }, [])
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    await signOut(auth)
   }
-
-  const isAdmin = session?.user.id === ADMIN_USER_ID
 
   if (checking) {
     return (
@@ -1995,7 +1900,7 @@ export default function Admin() {
     )
   }
 
-  if (!session) {
+  if (!user) {
     return <LoginForm />
   }
 

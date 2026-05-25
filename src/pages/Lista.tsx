@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, useInView } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
-import { supabase, type Gift, type GiftContribution, type HoneymoonContribution } from '../lib/supabase'
+import { db, type Gift, type GiftContribution, type HoneymoonContribution } from '../lib/firebase'
+import { collection, getDocs, addDoc, query, orderBy, serverTimestamp } from 'firebase/firestore'
 import { MOTION_EASE, MOTION_ENABLED, motionProps, presenceProps } from '../lib/motion'
 import { copy } from '../lib/i18n'
 import honeymoonImage from '../assets/img/nova-zelandia.jpg'
@@ -687,9 +688,12 @@ function HoneymoonFund() {  const [custom, setCustom] = useState('')
       amount: finalAmount,
     }
 
-    const { error: err } = await supabase.from('honeymoon_contributions').insert(contribution)
-
-    if (err) {
+    try {
+      await addDoc(collection(db, 'honeymoon_contributions'), {
+        ...contribution,
+        created_at: serverTimestamp(),
+      })
+    } catch {
       setError('Ocorreu um erro. Por favor tenta novamente.')
       setLoading(false)
       return
@@ -829,19 +833,24 @@ export default function Lista() {
   const loadData = async (showLoader = false) => {
     if (showLoader) setLoading(true)
 
-    const [giftsRes, contribRes] = await Promise.all([
-      supabase.from('gifts').select('*').order('price', { ascending: true }),
-      supabase.from('gift_contributions').select('gift_id, amount'),
-    ])
+    try {
+      const [giftsSnap, contribSnap] = await Promise.all([
+        getDocs(query(collection(db, 'gifts'), orderBy('price', 'asc'))),
+        getDocs(collection(db, 'gift_contributions')),
+      ])
 
-    if (!giftsRes.error && giftsRes.data) {
-      const contribs = (contribRes.data ?? []) as { gift_id: string; amount: number }[]
+      const contribs = contribSnap.docs.map((d) => d.data() as { gift_id: string; amount: number })
       const totals: Record<string, number> = {}
       for (const c of contribs) {
         totals[c.gift_id] = (totals[c.gift_id] ?? 0) + Number(c.amount)
       }
-      const data = giftsRes.data.map((g) => ({ ...g, contributed: totals[g.id] ?? 0 })) as GiftWithProgress[]
+      const data = giftsSnap.docs.map((d) => {
+        const g = { id: d.id, ...d.data() } as Gift
+        return { ...g, contributed: totals[g.id] ?? 0 }
+      }) as GiftWithProgress[]
       setGifts(data)
+    } catch {
+      // silently fail — keep existing gifts
     }
 
     setLoading(false)
@@ -888,8 +897,10 @@ export default function Lista() {
       contributor_name: name,
       amount,
     }
-    const { error } = await supabase.from('gift_contributions').insert(contribution)
-    if (error) throw error
+    await addDoc(collection(db, 'gift_contributions'), {
+      ...contribution,
+      created_at: serverTimestamp(),
+    })
     setGifts((prev) =>
       prev.map((g) => g.id === selectedGift.id ? { ...g, contributed: g.contributed + amount } : g)
     )
@@ -910,6 +921,16 @@ export default function Lista() {
           <h1 className="font-serif text-4xl sm:text-5xl md:text-7xl text-forest mb-6 leading-tight">
             <EditableText contentKey="lista.hero.title" fallback={copy.lista.hero.title} tag="span" />
           </h1>
+          <a
+            href="#lua-de-mel"
+            className="group inline-flex items-center gap-2.5 rounded-full border border-accent-mid/50 px-6 py-2.5 text-sm font-medium text-accent-dark transition-all duration-300 hover:border-accent hover:bg-accent-light"
+          >
+            Lua de mel
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              className="group-hover:translate-y-0.5 transition-transform duration-300">
+              <path d="M12 5v14M5 12l7 7 7-7" />
+            </svg>
+          </a>
         </motion.div>
       </section>
 
@@ -971,7 +992,7 @@ export default function Lista() {
       {/* ── Modal de Contribuição ── */}
       <div style={{ order: listaSectionOrderMap.honeymoon }} className="h-px bg-gradient-to-r from-transparent via-accent-mid/50 to-transparent mx-4 sm:mx-6 md:mx-24 mb-20 md:mb-24" />
 
-      <section style={{ order: listaSectionOrderMap.honeymoon }} className="px-4 sm:px-6 md:px-8 pb-20 md:pb-24 max-w-6xl mx-auto">
+      <section id="lua-de-mel" style={{ order: listaSectionOrderMap.honeymoon }} className="px-4 sm:px-6 md:px-8 pb-20 md:pb-24 max-w-6xl mx-auto">
         <HoneymoonFund />
       </section>
 

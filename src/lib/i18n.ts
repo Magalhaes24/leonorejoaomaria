@@ -35,10 +35,10 @@ export const copy = {
         wazeUrl: 'https://waze.com/ul?q=Igreja+Matriz+da+Azambuja+Azambuja+Portugal&navigate=yes',
       },
       cocktail: {
-        sectionLabel: '19 de setembro · 17h30',
+        sectionLabel: '19 de setembro · 18h00',
         name: 'Herdade do Crescido',
         address: 'Herdade do Crescido, Valada do Ribatejo, 2070-512 Cartaxo',
-        time: '17h30',
+        time: '18h00',
         mapQuery: 'Herdade do Crescido, Valada do Ribatejo, 2070-512 Cartaxo, Portugal',
         googleMapsUrl: 'https://www.google.com/maps/dir/?api=1&destination=Herdade+do+Crescido,+Valada+do+Ribatejo,+2070-512+Cartaxo,+Portugal',
         appleMapsUrl: 'https://maps.apple.com/?daddr=Herdade+do+Crescido,+Valada+do+Ribatejo,+Cartaxo,+Portugal',

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { supabase } from '../../lib/supabase'
+import { storage } from '../../lib/firebase'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { useEditor } from '../../contexts/EditorContext'
 
 interface EditableImageProps {
@@ -31,12 +32,10 @@ export function EditableImage({ contentKey, fallback, alt, className = '', imgCl
     try {
       const ext = file.name.split('.').pop() ?? 'jpg'
       const path = `editor/${contentKey.replace(/\./g, '/')}/${Date.now()}.${ext}`
-      const { error: upErr } = await supabase.storage
-        .from('site-assets')
-        .upload(path, file, { upsert: true })
-      if (upErr) throw upErr
-      const { data } = supabase.storage.from('site-assets').getPublicUrl(path)
-      apply(data.publicUrl)
+      const storageRef = ref(storage, path)
+      await uploadBytes(storageRef, file)
+      const url = await getDownloadURL(storageRef)
+      apply(url)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar imagem.')
     } finally {

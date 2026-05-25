@@ -1,10 +1,11 @@
 'use client'
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { auth } from '../lib/firebase'
+import { onAuthStateChanged } from 'firebase/auth'
+import type { User } from 'firebase/auth'
 import { fetchSiteContent, upsertSiteContentBatch, CONTENT_DEFAULTS, type ContentKey } from '../lib/siteContent'
 import { PALETTE_COLORS } from '../components/editor/PaletteEditor'
 
-const ADMIN_UID = '0b9c93dd-17a2-4943-befd-968943ba432f'
 const EDIT_MODE_KEY = 'editor_edit_mode'
 
 interface EditorContextValue {
@@ -53,23 +54,16 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
 
   // Check admin auth on mount and subscribe to changes
   useEffect(() => {
-    const checkAdmin = (uid: string | undefined) => {
-      setIsAdmin(uid === ADMIN_UID)
-      if (uid !== ADMIN_UID) {
-        // If not admin, always exit edit mode
-        setIsEditModeState(false)
-      }
+    const checkAdmin = async (user: User | null) => {
+      if (!user) { setIsAdmin(false); setIsEditModeState(false); return }
+      const token = await user.getIdTokenResult()
+      const isAdm = token.claims['admin'] === true
+      setIsAdmin(isAdm)
+      if (!isAdm) setIsEditModeState(false)
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      checkAdmin(data.session?.user.id)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      checkAdmin(session?.user.id)
-    })
-
-    return () => subscription.unsubscribe()
+    const unsubscribe = onAuthStateChanged(auth, checkAdmin)
+    return unsubscribe
   }, [])
 
   // Restore edit mode from localStorage (only if admin)

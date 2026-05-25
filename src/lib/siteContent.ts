@@ -1,4 +1,5 @@
-import { supabase } from './supabase'
+import { db } from './firebase'
+import { collection, getDocs, doc, setDoc, writeBatch } from 'firebase/firestore'
 
 // All editable content keys
 export const CONTENT_KEYS = {
@@ -235,59 +236,49 @@ export interface SiteContentRow {
   updated_at?: string
 }
 
-// Fetch all content from Supabase — returns a key→value map
+// Fetch all content from Firestore — returns a key→value map
 // Falls back to empty Map on error (defaults will apply)
 export async function fetchSiteContent(): Promise<Map<string, string>> {
-  const { data, error } = await supabase
-    .from('site_content')
-    .select('key, value')
-
-  if (error) {
-    console.warn('[siteContent] fetchSiteContent error:', error.message)
+  try {
+    const snapshot = await getDocs(collection(db, 'site_content'))
+    const map = new Map<string, string>()
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data()
+      map.set(docSnap.id, data.value ?? '')
+    }
+    return map
+  } catch (err) {
+    console.warn('[siteContent] fetchSiteContent error:', err)
     return new Map()
   }
-
-  const map = new Map<string, string>()
-  for (const row of data ?? []) {
-    map.set(row.key, row.value)
-  }
-  return map
 }
 
 // Upsert a single content item
 export async function upsertSiteContent(key: string, value: string): Promise<void> {
   const defaults = CONTENT_DEFAULTS[key as ContentKey]
-  const { error } = await supabase.from('site_content').upsert(
-    {
-      key,
-      value,
-      type: defaults?.type ?? 'text',
-      label: defaults?.label ?? key,
-      section: defaults?.section ?? '',
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'key' },
-  )
-  if (error) throw new Error(error.message)
+  await setDoc(doc(db, 'site_content', key), {
+    value,
+    type: defaults?.type ?? 'text',
+    label: defaults?.label ?? key,
+    section: defaults?.section ?? '',
+    updated_at: new Date().toISOString(),
+  }, { merge: true })
 }
 
 // Upsert multiple items at once
 export async function upsertSiteContentBatch(
   items: Array<{ key: string; value: string }>,
 ): Promise<void> {
-  const rows = items.map(({ key, value }) => {
+  const batch = writeBatch(db)
+  for (const { key, value } of items) {
     const defaults = CONTENT_DEFAULTS[key as ContentKey]
-    return {
-      key,
+    batch.set(doc(db, 'site_content', key), {
       value,
       type: defaults?.type ?? 'text',
       label: defaults?.label ?? key,
       section: defaults?.section ?? '',
       updated_at: new Date().toISOString(),
-    }
-  })
-  const { error } = await supabase
-    .from('site_content')
-    .upsert(rows, { onConflict: 'key' })
-  if (error) throw new Error(error.message)
+    }, { merge: true })
+  }
+  await batch.commit()
 }

@@ -2,12 +2,13 @@ import { AnimatePresence, motion, useInView, useScroll, useTransform } from 'fra
 import type { CSSProperties } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { db } from '../lib/firebase'
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { MOTION_EASE, MOTION_ENABLED, motionProps, motionValue, presenceProps } from '../lib/motion'
 import { copy } from '../lib/i18n'
 import { EditableText, EditableImage, useContent, useEditor } from '../components/editor'
 import cocktailIcon from '../assets/img/cocktail.png'
-import cocktailVenueImage from '../assets/img/herdade-do-crescido-cavalo.jpg'
+import cocktailVenueImage from '../assets/img/tenda-herdade-do-crescido.jpg'
 import heroPhotoOne from '../assets/img/fotografia-1.jpeg'
 import heroPhotoFour from '../assets/img/fotografia-4.jpeg'
 import heroPhoto from '../assets/img/fotografia-5.jpeg'
@@ -253,11 +254,15 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
     if (!nome.trim() || !sentido) return
     setLoading(true)
     setError('')
-    const { error: err } = await supabase.from('boleias').insert({
-      nome: nome.trim(), telefone: telefone.trim() || null,
-      lugares, sentido, notas: notas.trim() || null,
-    })
-    if (err) { setError(copy.home.boleias.modal.error); setLoading(false); return }
+    try {
+      await addDoc(collection(db, 'boleias'), {
+        nome: nome.trim(), telefone: telefone.trim() || null,
+        lugares, sentido, notas: notas.trim() || null,
+        created_at: serverTimestamp(),
+      })
+    } catch {
+      setError(copy.home.boleias.modal.error); setLoading(false); return
+    }
     setDone(true)
     setLoading(false)
   }
@@ -373,10 +378,14 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
     setLoading(true)
     setError('')
     const todasRestricoes = outra.trim() ? [...restricoes, outra.trim()] : restricoes
-    const { error: err } = await supabase.from('alergias').insert({
-      nome: nome.trim(), restricoes: todasRestricoes, notas: notas.trim() || null,
-    })
-    if (err) { setError(copy.home.allergiesModal.error); setLoading(false); return }
+    try {
+      await addDoc(collection(db, 'alergias'), {
+        nome: nome.trim(), restricoes: todasRestricoes, notas: notas.trim() || null,
+        created_at: serverTimestamp(),
+      })
+    } catch {
+      setError(copy.home.allergiesModal.error); setLoading(false); return
+    }
     setDone(true)
     setLoading(false)
   }
@@ -563,11 +572,11 @@ function VenueSection({
             <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-forest mb-5">
               {nameKey ? <EditableText contentKey={nameKey} fallback={name} tag="span" /> : name}
             </h2>
-            <div className="flex items-start gap-3 text-sm text-gray-500 mb-3">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+            <div className="flex items-center gap-3 mb-3">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
                 <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
               </svg>
-              <span>{timeKey ? <EditableText contentKey={timeKey} fallback={time} tag="span" /> : time}</span>
+              <span className="text-base font-semibold text-forest">{timeKey ? <EditableText contentKey={timeKey} fallback={time} tag="span" /> : time}</span>
             </div>
             <div className="flex items-start gap-3 text-sm text-gray-500">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
@@ -695,10 +704,10 @@ export default function Home() {
           <motion.p
             {...motionProps({
               initial: { opacity: 0, letterSpacing: '0.15em' },
-              animate: { opacity: 1, letterSpacing: '0.4em' },
+              animate: { opacity: 1, letterSpacing: '0.3em' },
               transition: { duration: 1.4, ease: MOTION_EASE },
             })}
-            className="text-xs font-medium text-accent mb-8"
+            className="text-sm sm:text-base font-semibold text-accent mb-8 tracking-[0.3em]"
           >
             <EditableText contentKey="home.hero.tag" fallback={copy.home.hero.tag} tag="span" />
           </motion.p>
@@ -778,7 +787,7 @@ export default function Home() {
                   transition: { duration: 0.5, delay: 1.2 + i * 0.07 },
                 })}
                 onClick={() => scrollTo(item.id)}
-                className="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 rounded-full text-sm font-medium border border-accent-mid/50 text-accent-dark hover:bg-accent hover:text-white hover:border-accent transition-all duration-300"
+                className={`flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 rounded-full text-sm font-medium border transition-all duration-300 ${item.id === 'lista' ? 'bg-forest text-white border-forest hover:bg-accent-dark hover:border-accent-dark shadow-lg shadow-forest/20' : 'border-accent-mid/50 text-accent-dark hover:bg-accent hover:text-white hover:border-accent'}`}
               >
                 {item.label}
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -884,10 +893,18 @@ export default function Home() {
               <p className="max-w-lg text-sm leading-relaxed text-gray-500">
                 <EditableText contentKey="home.list.description" fallback={copy.home.listSection.description} tag="span" multiline />
               </p>
-              <div className="mt-8 flex">
+              <div className="mt-8 flex flex-col sm:flex-row gap-3">
                 <Link to="/lista"
                   className="group inline-flex w-full items-center justify-center gap-3 rounded-full bg-forest px-8 py-4 text-sm font-medium text-white shadow-xl shadow-forest/15 transition-all duration-300 hover:bg-accent-dark sm:w-auto">
                   <EditableText contentKey="home.list.cta" fallback={listCtaLabel} tag="span" />
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    className="group-hover:translate-x-1 transition-transform duration-300">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </Link>
+                <Link to="/lista#lua-de-mel"
+                  className="group inline-flex w-full items-center justify-center gap-3 rounded-full border border-accent-mid/50 px-8 py-4 text-sm font-medium text-accent-dark transition-all duration-300 hover:border-accent hover:bg-accent-light sm:w-auto">
+                  Lua de mel
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
                     className="group-hover:translate-x-1 transition-transform duration-300">
                     <path d="M5 12h14M12 5l7 7-7 7" />
