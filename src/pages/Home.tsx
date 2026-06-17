@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { db } from '../lib/firebase'
+import { notifyAdmin } from '../lib/notify'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { MOTION_EASE, MOTION_ENABLED, motionProps, motionValue, presenceProps } from '../lib/motion'
 import { copy } from '../lib/i18n'
@@ -10,6 +11,7 @@ import { EditableText, EditableImage, useContent, useEditor } from '../component
 import cocktailIcon from '../assets/img/cocktail.png'
 import cocktailVenueImage from '../assets/img/tenda-herdade-do-crescido.jpg'
 import heroPhotoOne from '../assets/img/fotografia-1.jpeg'
+import presencaImage from '../assets/img/fotografia-3.jpeg'
 import heroPhotoFour from '../assets/img/fotografia-4.jpeg'
 import heroPhoto from '../assets/img/fotografia-5.jpeg'
 import listSectionImage from '../assets/img/nova-zelandia.jpg'
@@ -18,7 +20,7 @@ import googleMapsIcon from '../assets/img/maps_icons/google-maps-icon.svg'
 import appleMapsIcon from '../assets/img/maps_icons/apple-maps-icon.svg'
 import wazeIcon from '../assets/img/maps_icons/waze-icon.svg'
 
-const DEFAULT_HOME_SECTION_ORDER = ['countdown', 'ceremony', 'cocktail', 'list', 'info'] as const
+const DEFAULT_HOME_SECTION_ORDER = ['countdown', 'ceremony', 'cocktail', 'list', 'info', 'presenca'] as const
 
 // ─── Countdown ────────────────────────────────────────────────────────────────
 const DEFAULT_WEDDING_TIMESTAMP = new Date('2026-09-19T15:00:00').getTime()
@@ -117,12 +119,6 @@ function parseSectionOrder(value: string, defaults: readonly string[]) {
   return [...parsed, ...missing]
 }
 
-function createSectionOrderMap(order: string[]) {
-  return order.reduce<Record<string, number>>((acc, id, index) => {
-    acc[id] = index
-    return acc
-  }, {})
-}
 
 function CountUnit({ value, label, contentKey }: { value: number; label: string; contentKey?: string }) {
   const ref = useRef(null)
@@ -248,6 +244,16 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
   const namePlaceholder = useContent('home.boleias.name_placeholder', copy.home.boleias.modal.namePlaceholder)
   const phonePlaceholder = useContent('home.boleias.phone_placeholder', copy.home.boleias.modal.phonePlaceholder)
   const notesPlaceholder = useContent('home.boleias.notes_placeholder', copy.home.boleias.modal.notesPlaceholder)
+  const introTag = useContent('home.boleias.intro_tag', copy.home.boleias.modal.introTag)
+  const title = useContent('home.boleias.title', copy.home.boleias.modal.title)
+  const description = useContent('home.boleias.description', copy.home.boleias.modal.description)
+  const nameLabel = useContent('home.boleias.name_label', copy.home.boleias.modal.nameLabel)
+  const phoneLabel = useContent('home.boleias.phone_label', copy.home.boleias.modal.phoneLabel)
+  const seatsLabel = useContent('home.boleias.seats_label', copy.home.boleias.modal.seatsLabel)
+  const whenLabel = useContent('home.boleias.when_label', copy.home.boleias.modal.whenLabel)
+  const notesLabel = useContent('home.boleias.notes_label', copy.home.boleias.modal.notesLabel)
+  const successTitle = useContent('home.boleias.success_title', copy.home.boleias.modal.successTitle)
+  const successMessage = useContent('home.boleias.success_message', copy.home.boleias.modal.successMessage)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -287,29 +293,29 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </motion.div>
-            <h3 className="font-serif text-2xl text-forest mb-2">{copy.home.boleias.modal.successTitle}</h3>
-            <p className="text-gray-400 text-sm">{copy.home.boleias.modal.successMessage}</p>
+            <h3 className="font-serif text-2xl text-forest mb-2"><EditableText contentKey="home.boleias.success_title" fallback={successTitle} tag="span" /></h3>
+            <p className="text-gray-400 text-sm"><EditableText contentKey="home.boleias.success_message" fallback={successMessage} tag="span" /></p>
             <button onClick={onClose} className="mt-6 text-sm text-accent font-medium hover:text-accent-dark transition-colors"><EditableText contentKey="home.boleias.close" fallback={closeLabel} tag="span" /></button>
           </div>
         ) : (
           <>
-            <p className="text-xs uppercase tracking-widest text-accent mb-2">{copy.home.boleias.modal.introTag}</p>
-            <h3 className="font-serif text-2xl text-forest mb-1">{copy.home.boleias.modal.title}</h3>
-            <p className="text-gray-400 text-sm mb-6">{copy.home.boleias.modal.description}</p>
+            <p className="text-xs uppercase tracking-widest text-accent mb-2"><EditableText contentKey="home.boleias.intro_tag" fallback={introTag} tag="span" /></p>
+            <h3 className="font-serif text-2xl text-forest mb-1"><EditableText contentKey="home.boleias.title" fallback={title} tag="span" /></h3>
+            <p className="text-gray-400 text-sm mb-6"><EditableText contentKey="home.boleias.description" fallback={description} tag="span" multiline /></p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.nameLabel}</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2"><EditableText contentKey="home.boleias.name_label" fallback={nameLabel} tag="span" /></label>
                 <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder={namePlaceholder}
                   required className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.phoneLabel}</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2"><EditableText contentKey="home.boleias.phone_label" fallback={phoneLabel} tag="span" /></label>
                 <input type="tel" value={telefone} onChange={e => setTelefone(e.target.value)} placeholder={phonePlaceholder}
                   className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.seatsLabel}</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2"><EditableText contentKey="home.boleias.seats_label" fallback={seatsLabel} tag="span" /></label>
                 <div className="flex items-center gap-3">
                   <button type="button" onClick={() => setLugares(l => Math.max(1, l - 1))}
                     className="w-10 h-10 rounded-full border border-accent-mid/60 text-accent-dark font-medium hover:bg-accent-light transition-colors">−</button>
@@ -319,7 +325,7 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.whenLabel}</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2"><EditableText contentKey="home.boleias.when_label" fallback={whenLabel} tag="span" /></label>
                 <div className="grid grid-cols-1 gap-2">
                   {SENTIDOS.map(s => (
                     <label key={s.value} className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all ${sentido === s.value ? 'border-accent bg-accent-light/50' : 'border-accent-mid/40 hover:border-accent/40'}`}>
@@ -330,7 +336,7 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.boleias.modal.notesLabel}</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2"><EditableText contentKey="home.boleias.notes_label" fallback={notesLabel} tag="span" /></label>
                 <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder={notesPlaceholder}
                   rows={2} className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all resize-none" />
               </div>
@@ -368,6 +374,15 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
   const namePlaceholder = useContent('home.allergies_modal.name_placeholder', copy.home.allergiesModal.namePlaceholder)
   const otherPlaceholder = useContent('home.allergies_modal.other_placeholder', copy.home.allergiesModal.otherRestrictionPlaceholder)
   const notesPlaceholder = useContent('home.allergies_modal.notes_placeholder', copy.home.allergiesModal.notesPlaceholder)
+  const introTag = useContent('home.allergies_modal.intro_tag', copy.home.allergiesModal.introTag)
+  const title = useContent('home.allergies_modal.title', copy.home.allergiesModal.title)
+  const description = useContent('home.allergies_modal.description', copy.home.allergiesModal.description)
+  const nameLabel = useContent('home.allergies_modal.name_label', copy.home.allergiesModal.nameLabel)
+  const restrictionsLabel = useContent('home.allergies_modal.restrictions_label', copy.home.allergiesModal.restrictionsLabel)
+  const otherLabel = useContent('home.allergies_modal.other_label', copy.home.allergiesModal.otherRestrictionLabel)
+  const notesLabel = useContent('home.allergies_modal.notes_label', copy.home.allergiesModal.notesLabel)
+  const successTitle = useContent('home.allergies_modal.success_title', copy.home.allergiesModal.successTitle)
+  const successMessage = useContent('home.allergies_modal.success_message', copy.home.allergiesModal.successMessage)
 
   const toggleRestricao = (r: string) =>
     setRestricoes(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])
@@ -409,24 +424,24 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </motion.div>
-            <h3 className="font-serif text-2xl text-forest mb-2">{copy.home.allergiesModal.successTitle}</h3>
-            <p className="text-gray-400 text-sm">{copy.home.allergiesModal.successMessage}</p>
+            <h3 className="font-serif text-2xl text-forest mb-2"><EditableText contentKey="home.allergies_modal.success_title" fallback={successTitle} tag="span" /></h3>
+            <p className="text-gray-400 text-sm"><EditableText contentKey="home.allergies_modal.success_message" fallback={successMessage} tag="span" /></p>
             <button onClick={onClose} className="mt-6 text-sm text-accent font-medium hover:text-accent-dark transition-colors"><EditableText contentKey="home.allergies_modal.close" fallback={closeLabel} tag="span" /></button>
           </div>
         ) : (
           <>
-            <p className="text-xs uppercase tracking-widest text-accent mb-2">{copy.home.allergiesModal.introTag}</p>
-            <h3 className="font-serif text-2xl text-forest mb-1">{copy.home.allergiesModal.title}</h3>
-            <p className="text-gray-400 text-sm mb-6">{copy.home.allergiesModal.description}</p>
+            <p className="text-xs uppercase tracking-widest text-accent mb-2"><EditableText contentKey="home.allergies_modal.intro_tag" fallback={introTag} tag="span" /></p>
+            <h3 className="font-serif text-2xl text-forest mb-1"><EditableText contentKey="home.allergies_modal.title" fallback={title} tag="span" /></h3>
+            <p className="text-gray-400 text-sm mb-6"><EditableText contentKey="home.allergies_modal.description" fallback={description} tag="span" multiline /></p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.allergiesModal.nameLabel}</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2"><EditableText contentKey="home.allergies_modal.name_label" fallback={nameLabel} tag="span" /></label>
                 <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder={namePlaceholder}
                   required className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-3">{copy.home.allergiesModal.restrictionsLabel}</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-3"><EditableText contentKey="home.allergies_modal.restrictions_label" fallback={restrictionsLabel} tag="span" /></label>
                 <div className="flex flex-wrap gap-2">
                   {RESTRICOES_COMUNS.map(r => (
                     <button key={r} type="button" onClick={() => toggleRestricao(r)}
@@ -437,12 +452,12 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.allergiesModal.otherRestrictionLabel}</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2"><EditableText contentKey="home.allergies_modal.other_label" fallback={otherLabel} tag="span" /></label>
                 <input type="text" value={outra} onChange={e => setOutra(e.target.value)} placeholder={otherPlaceholder}
                   className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2">{copy.home.allergiesModal.notesLabel}</label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2"><EditableText contentKey="home.allergies_modal.notes_label" fallback={notesLabel} tag="span" /></label>
                 <textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder={notesPlaceholder}
                   rows={2} className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all resize-none" />
               </div>
@@ -452,6 +467,133 @@ function AlergiasModal({ onClose }: { onClose: () => void }) {
                 <button type="submit" disabled={loading || !nome.trim() || (restricoes.length === 0 && !outra.trim())}
                   className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-forest hover:bg-accent-dark transition-all disabled:opacity-40 disabled:cursor-not-allowed">
                   <EditableText contentKey={loading ? 'home.allergies_modal.loading' : 'home.allergies_modal.submit'} fallback={loading ? loadingLabel : submitLabel} tag="span" />
+                </button>
+              </div>
+            </form>
+          </>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+// ─── Modal: Presença ─────────────────────────────────────────────────────────
+const OPCOES_PRESENCA = copy.home.presencaModal.opcoes
+
+function PresencaModal({ onClose }: { onClose: () => void }) {
+  const [nome, setNome] = useState('')
+  const [presenca, setPresenca] = useState<'tudo' | 'missa' | 'festa' | 'nao' | ''>('')
+  const [loading, setLoading] = useState(false)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState('')
+  const modalTag = useContent('home.presenca_modal.tag', copy.home.presencaModal.tag)
+  const modalTitle = useContent('home.presenca_modal.title', copy.home.presencaModal.title)
+  const nameLabel = useContent('home.presenca_modal.name_label', copy.home.presencaModal.nameLabel)
+  const namePlaceholder = useContent('home.presenca_modal.name_placeholder', copy.home.presencaModal.namePlaceholder)
+  const presencaLabel = useContent('home.presenca_modal.presenca_label', copy.home.presencaModal.presencaLabel)
+  const cancelLabel = useContent('home.presenca_modal.cancel', copy.home.presencaModal.cancel)
+  const submitLabel = useContent('home.presenca_modal.submit', copy.home.presencaModal.submit)
+  const loadingLabel = useContent('home.presenca_modal.loading', copy.home.presencaModal.loading)
+  const successTitle = useContent('home.presenca_modal.success_title', copy.home.presencaModal.successTitle)
+  const successMessage = useContent('home.presenca_modal.success_message', copy.home.presencaModal.successMessage)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!nome.trim() || !presenca) return
+    setLoading(true)
+    setError('')
+    try {
+      await addDoc(collection(db, 'presencas'), {
+        nome: nome.trim(),
+        presenca,
+        created_at: serverTimestamp(),
+      })
+      const presencaLabels: Record<string, string> = {
+        tudo: 'Missa e festa',
+        missa: 'Só missa',
+        festa: 'Só festa',
+        nao: 'Não vai poder ir',
+      }
+      void notifyAdmin('Nova presença confirmada 🎉', {
+        Nome: nome.trim(),
+        Presença: presencaLabels[presenca] ?? presenca,
+      })
+    } catch {
+      setError(copy.home.presencaModal.error)
+      setLoading(false)
+      return
+    }
+    setDone(true)
+    setLoading(false)
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <div className="p-8">
+        <div className="w-10 h-1 bg-accent-mid rounded-full mx-auto mb-6 md:hidden" />
+
+        {done ? (
+          <div className="text-center py-8">
+            <motion.div
+              {...motionProps({
+                initial: { scale: 0 },
+                animate: { scale: 1 },
+                transition: { type: 'spring', stiffness: 300, damping: 20 },
+              })}
+              className="w-14 h-14 bg-accent/15 rounded-full flex items-center justify-center mx-auto mb-4"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </motion.div>
+            <h3 className="font-serif text-2xl text-forest mb-2"><EditableText contentKey="home.presenca_modal.success_title" fallback={successTitle} tag="span" /></h3>
+            <p className="text-gray-400 text-sm"><EditableText contentKey="home.presenca_modal.success_message" fallback={successMessage} tag="span" /></p>
+            <button onClick={onClose} className="mt-6 text-sm text-accent font-medium hover:text-accent-dark transition-colors">{copy.home.presencaModal.close}</button>
+          </div>
+        ) : (
+          <>
+            <p className="text-xs uppercase tracking-widest text-accent mb-2"><EditableText contentKey="home.presenca_modal.tag" fallback={modalTag} tag="span" /></p>
+            <h3 className="font-serif text-2xl text-forest mb-6"><EditableText contentKey="home.presenca_modal.title" fallback={modalTitle} tag="span" /></h3>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2"><EditableText contentKey="home.presenca_modal.name_label" fallback={nameLabel} tag="span" /></label>
+                <input type="text" value={nome} onChange={e => setNome(e.target.value)}
+                  placeholder={namePlaceholder} required
+                  className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-3"><EditableText contentKey="home.presenca_modal.presenca_label" fallback={presencaLabel} tag="span" /></label>
+                <div className="grid grid-cols-1 gap-2">
+                  {OPCOES_PRESENCA.map(op => (
+                    <label key={op.value}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all ${
+                        presenca === op.value
+                          ? 'border-accent bg-accent-light/50'
+                          : 'border-accent-mid/40 hover:border-accent/40'
+                      }`}
+                    >
+                      <input type="radio" name="presenca" value={op.value}
+                        checked={presenca === op.value}
+                        onChange={() => setPresenca(op.value as typeof presenca)}
+                        className="accent-accent" />
+                      <span className="text-sm text-gray-800">{op.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {error && <p className="text-red-400 text-xs">{error}</p>}
+
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={onClose}
+                  className="flex-1 py-3 rounded-xl text-sm font-medium text-accent-dark bg-accent-light hover:bg-accent-mid/30 transition-colors">
+                  <EditableText contentKey="home.presenca_modal.cancel" fallback={cancelLabel} tag="span" />
+                </button>
+                <button type="submit" disabled={loading || !nome.trim() || !presenca}
+                  className="flex-1 py-3 rounded-xl text-sm font-medium text-white bg-forest hover:bg-accent-dark transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                  <EditableText contentKey={loading ? 'home.presenca_modal.loading' : 'home.presenca_modal.submit'} fallback={loading ? loadingLabel : submitLabel} tag="span" />
                 </button>
               </div>
             </form>
@@ -632,11 +774,13 @@ const NAV_ITEMS = [
   { id: 'cerimonia', label: copy.home.locations.churchLabel },
   { id: 'cocktail', label: copy.home.locations.cocktailLabel },
   { id: 'lista', label: copy.home.listSection.tag },
+  { id: 'presenca', label: copy.home.presenca.tag, highlight: true },
 ]
 
 export default function Home() {
   const [showBoleias, setShowBoleias] = useState(false)
   const [showAlergias, setShowAlergias] = useState(false)
+  const [showPresenca, setShowPresenca] = useState(false)
   const { isEditMode, updateContent, getContent } = useEditor()
   const listReversed = getContent('home.list.reverse_layout', 'false') === 'true'
   const heroTag = useContent('home.hero.tag', copy.home.hero.tag)
@@ -649,11 +793,11 @@ export default function Home() {
   const listCtaLabel = useContent('home.list.cta', copy.home.listSection.cta)
   const transportCtaLabel = useContent('home.transport.cta', copy.home.transport.cta)
   const allergiesCtaLabel = useContent('home.allergies.cta', copy.home.allergies.cta)
+
   const homeSectionOrder = parseSectionOrder(
     useContent('layout.home_order', DEFAULT_HOME_SECTION_ORDER.join(',')),
     DEFAULT_HOME_SECTION_ORDER,
   )
-  const homeSectionOrderMap = createSectionOrderMap(homeSectionOrder)
   const weddingTimestamp = parseWeddingTimestamp(heroTag, ceremonyTime)
   const { days, hours, minutes, seconds } = useCountdown(weddingTimestamp)
   const ceremonyMaps = buildMapLinks(ceremonyAddress)
@@ -698,7 +842,7 @@ export default function Home() {
             scale: motionValue(heroContentScale, 1),
             opacity: motionValue(heroContentOpacity, 1),
           }}
-          className="relative text-center max-w-6xl mx-auto w-full origin-center"
+          className="relative text-center max-w-6xl mx-auto w-full origin-center pt-16 pb-8 md:pt-0 md:pb-0"
         >
           {/* Data */}
           <motion.p
@@ -787,7 +931,7 @@ export default function Home() {
                   transition: { duration: 0.5, delay: 1.2 + i * 0.07 },
                 })}
                 onClick={() => scrollTo(item.id)}
-                className={`flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 rounded-full text-sm font-medium border transition-all duration-300 ${item.id === 'lista' ? 'bg-forest text-white border-forest hover:bg-accent-dark hover:border-accent-dark shadow-lg shadow-forest/20' : 'border-accent-mid/50 text-accent-dark hover:bg-accent hover:text-white hover:border-accent'}`}
+                className={`flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 rounded-full text-sm font-medium border transition-all duration-300 ${'highlight' in item && item.highlight ? 'bg-forest text-white border-forest hover:bg-accent-dark hover:border-accent-dark shadow-lg shadow-forest/20' : 'border-accent-mid/50 text-accent-dark hover:bg-accent hover:text-white hover:border-accent'}`}
               >
                 {item.label}
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -801,174 +945,197 @@ export default function Home() {
 
       </section>
 
-      {/* ── Contagem ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-col">
-      <ScrollPlane style={{ order: homeSectionOrderMap.countdown }} className="py-20 md:py-24 bg-accent-light/40 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse 50% 100% at 100% 50%, color-mix(in srgb, var(--color-accent) 10%, transparent) 0%, transparent 60%)' }} />
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 relative">
-          <FadeUp className="text-center mb-12">
-            <p className="text-xs uppercase tracking-widest text-accent font-medium">
-              <EditableText contentKey="home.countdown.title" fallback={copy.home.countdown.title} tag="span" />
-            </p>
-          </FadeUp>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
-            <CountUnit value={days} label={copy.home.countdown.days} contentKey="home.countdown.days" />
-            <CountUnit value={hours} label={copy.home.countdown.hours} contentKey="home.countdown.hours" />
-            <CountUnit value={minutes} label={copy.home.countdown.minutes} contentKey="home.countdown.minutes" />
-            <CountUnit value={seconds} label={copy.home.countdown.seconds} contentKey="home.countdown.seconds" />
-          </div>
-        </div>
-      </ScrollPlane>
-
-      {/* ── Cerimónia ────────────────────────────────────────────────────── */}
-      <VenueSection
-        style={{ order: homeSectionOrderMap.ceremony }}
-        id="cerimonia"
-        sectionLabel={copy.home.venues.ceremony.sectionLabel}
-        name={ceremonyName}
-        address={ceremonyAddress}
-        time={ceremonyTime}
-        imageSrc={ceremonyVenueImage}
-        imageKey="home.venue.ceremony.image"
-        mapQuery={`${ceremonyName}, ${ceremonyAddress}`}
-        googleMapsUrl={ceremonyGmaps}
-        appleMapsUrl={ceremonyApple}
-        wazeUrl={ceremonyWaze}
-        mapZoom={17}
-        layoutKey="home.venue.ceremony.reverse_layout"
-        nameKey="home.venue.ceremony.name"
-        addressKey="home.venue.ceremony.address"
-        timeKey="home.venue.ceremony.time"
-      />
-
-      {/* ── Cocktail ─────────────────────────────────────────────────────── */}
-      <VenueSection
-        style={{ order: homeSectionOrderMap.cocktail }}
-        id="cocktail"
-        sectionLabel={copy.home.venues.cocktail.sectionLabel}
-        name={cocktailName}
-        address={cocktailAddress}
-        time={cocktailTime}
-        imageSrc={cocktailVenueImage}
-        imageKey="home.venue.cocktail.image"
-        mapQuery={`${cocktailName}, ${cocktailAddress}`}
-        googleMapsUrl={cocktailGmaps}
-        appleMapsUrl={cocktailApple}
-        wazeUrl={cocktailWaze}
-        accentBg
-        mapZoom={15}
-        reverseLayout
-        layoutKey="home.venue.cocktail.reverse_layout"
-        nameKey="home.venue.cocktail.name"
-        addressKey="home.venue.cocktail.address"
-        timeKey="home.venue.cocktail.time"
-      />
-
-      {/* ── Lista de Presentes ───────────────────────────────────────────── */}
-      <section id="lista" style={{ order: homeSectionOrderMap.list, background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-accent-light) 20%, white) 0%, color-mix(in srgb, var(--color-accent-light) 70%, white) 100%)' }} className="relative overflow-hidden py-20 md:py-28">
-        <div className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse 70% 80% at 85% 40%, color-mix(in srgb, var(--color-sage) 14%, transparent) 0%, transparent 55%)' }} />
-        <div className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse 40% 50% at 10% 70%, color-mix(in srgb, var(--color-accent) 8%, transparent) 0%, transparent 50%)' }} />
-        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
-          {isEditMode && (
-            <button
-              type="button"
-              onClick={() => updateContent('home.list.reverse_layout', String(!listReversed))}
-              className="absolute top-0 right-0 z-10 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-accent-mid/30 rounded-full px-3 py-1.5 text-xs font-medium text-forest shadow-sm hover:bg-accent-light hover:border-accent transition-colors"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
-              </svg>
-              Inverter layout
-            </button>
-          )}
-          <div className="grid items-center gap-10 md:grid-cols-[0.95fr_1.05fr] md:gap-14">
-            <FadeUp className={`max-w-xl ${listReversed ? 'md:order-2' : ''}`}>
-              <p className="mb-4 text-xs uppercase tracking-widest text-accent"><EditableText contentKey="home.list.tag" fallback={copy.home.listSection.tag} tag="span" /></p>
-              <h2 className="mb-6 font-serif text-3xl leading-tight text-forest sm:text-4xl md:text-5xl">
-                <EditableText contentKey="home.list.title" fallback={copy.home.listSection.title} tag="span" />
-              </h2>
-              <p className="max-w-lg text-sm leading-relaxed text-gray-500">
-                <EditableText contentKey="home.list.description" fallback={copy.home.listSection.description} tag="span" multiline />
-              </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <Link to="/lista"
-                  className="group inline-flex w-full items-center justify-center gap-3 rounded-full bg-forest px-8 py-4 text-sm font-medium text-white shadow-xl shadow-forest/15 transition-all duration-300 hover:bg-accent-dark sm:w-auto">
-                  <EditableText contentKey="home.list.cta" fallback={listCtaLabel} tag="span" />
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                    className="group-hover:translate-x-1 transition-transform duration-300">
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
-                </Link>
-                <Link to="/lista#lua-de-mel"
-                  className="group inline-flex w-full items-center justify-center gap-3 rounded-full border border-accent-mid/50 px-8 py-4 text-sm font-medium text-accent-dark transition-all duration-300 hover:border-accent hover:bg-accent-light sm:w-auto">
-                  Lua de mel
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                    className="group-hover:translate-x-1 transition-transform duration-300">
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
-                </Link>
+      {/* ── Secções ordenáveis ───────────────────────────────────────────── */}
+      {homeSectionOrder.map((sectionId) => {
+        if (sectionId === 'countdown') return (
+          <ScrollPlane key="countdown" className="py-20 md:py-24 bg-accent-light/40 relative overflow-hidden">
+            <div className="absolute inset-0 pointer-events-none"
+              style={{ background: 'radial-gradient(ellipse 50% 100% at 100% 50%, color-mix(in srgb, var(--color-accent) 10%, transparent) 0%, transparent 60%)' }} />
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 relative">
+              <FadeUp className="text-center mb-12">
+                <p className="text-xs uppercase tracking-widest text-accent font-medium">
+                  <EditableText contentKey="home.countdown.title" fallback={copy.home.countdown.title} tag="span" />
+                </p>
+              </FadeUp>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
+                <CountUnit value={days} label={copy.home.countdown.days} contentKey="home.countdown.days" />
+                <CountUnit value={hours} label={copy.home.countdown.hours} contentKey="home.countdown.hours" />
+                <CountUnit value={minutes} label={copy.home.countdown.minutes} contentKey="home.countdown.minutes" />
+                <CountUnit value={seconds} label={copy.home.countdown.seconds} contentKey="home.countdown.seconds" />
               </div>
-            </FadeUp>
-            <FadeUp delay={0.15} className={listReversed ? 'md:order-1' : ''}>
-              <div className="relative overflow-hidden rounded-[32px] shadow-[0_28px_70px_-30px_color-mix(in_srgb,var(--color-forest)_22%,transparent)] ring-1 ring-accent-mid/20">
-                <div className="aspect-[4/3]">
-                  <EditableImage contentKey="home.list.image" fallback={listSectionImage} alt={copy.home.listSection.imageAlt} imgClassName="h-full w-full object-cover" />
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-white/8 via-transparent to-transparent" />
+            </div>
+          </ScrollPlane>
+        )
+
+        if (sectionId === 'ceremony') return (
+          <VenueSection key="ceremony"
+            id="cerimonia"
+            sectionLabel={copy.home.venues.ceremony.sectionLabel}
+            name={ceremonyName}
+            address={ceremonyAddress}
+            time={ceremonyTime}
+            imageSrc={ceremonyVenueImage}
+            imageKey="home.venue.ceremony.image"
+            mapQuery={`${ceremonyName}, ${ceremonyAddress}`}
+            googleMapsUrl={ceremonyGmaps}
+            appleMapsUrl={ceremonyApple}
+            wazeUrl={ceremonyWaze}
+            mapZoom={17}
+            layoutKey="home.venue.ceremony.reverse_layout"
+            nameKey="home.venue.ceremony.name"
+            addressKey="home.venue.ceremony.address"
+            timeKey="home.venue.ceremony.time"
+          />
+        )
+
+        if (sectionId === 'cocktail') return (
+          <VenueSection key="cocktail"
+            id="cocktail"
+            sectionLabel={copy.home.venues.cocktail.sectionLabel}
+            name={cocktailName}
+            address={cocktailAddress}
+            time={cocktailTime}
+            imageSrc={cocktailVenueImage}
+            imageKey="home.venue.cocktail.image"
+            mapQuery={`${cocktailName}, ${cocktailAddress}`}
+            googleMapsUrl={cocktailGmaps}
+            appleMapsUrl={cocktailApple}
+            wazeUrl={cocktailWaze}
+            accentBg
+            mapZoom={15}
+            reverseLayout
+            layoutKey="home.venue.cocktail.reverse_layout"
+            nameKey="home.venue.cocktail.name"
+            addressKey="home.venue.cocktail.address"
+            timeKey="home.venue.cocktail.time"
+          />
+        )
+
+        if (sectionId === 'list') return (
+          <section key="list" id="lista" style={{ background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-accent-light) 20%, white) 0%, color-mix(in srgb, var(--color-accent-light) 70%, white) 100%)' }} className="relative overflow-hidden py-20 md:py-28">
+            <div className="absolute inset-0 pointer-events-none"
+              style={{ background: 'radial-gradient(ellipse 70% 80% at 85% 40%, color-mix(in srgb, var(--color-sage) 14%, transparent) 0%, transparent 55%)' }} />
+            <div className="absolute inset-0 pointer-events-none"
+              style={{ background: 'radial-gradient(ellipse 40% 50% at 10% 70%, color-mix(in srgb, var(--color-accent) 8%, transparent) 0%, transparent 50%)' }} />
+            <div className="relative max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
+              {isEditMode && (
+                <button type="button"
+                  onClick={() => updateContent('home.list.reverse_layout', String(!listReversed))}
+                  className="absolute top-0 right-0 z-10 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-accent-mid/30 rounded-full px-3 py-1.5 text-xs font-medium text-forest shadow-sm hover:bg-accent-light hover:border-accent transition-colors">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
+                  </svg>
+                  Inverter layout
+                </button>
+              )}
+              <div className="grid items-center gap-10 md:grid-cols-[0.95fr_1.05fr] md:gap-14">
+                <FadeUp className={`max-w-xl ${listReversed ? 'md:order-2' : ''}`}>
+                  <p className="mb-4 text-xs uppercase tracking-widest text-accent"><EditableText contentKey="home.list.tag" fallback={copy.home.listSection.tag} tag="span" /></p>
+                  <h2 className="mb-6 font-serif text-3xl leading-tight text-forest sm:text-4xl md:text-5xl">
+                    <EditableText contentKey="home.list.title" fallback={copy.home.listSection.title} tag="span" />
+                  </h2>
+                  <p className="max-w-lg text-sm leading-relaxed text-gray-500">
+                    <EditableText contentKey="home.list.description" fallback={copy.home.listSection.description} tag="span" multiline />
+                  </p>
+                  <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                    <Link to="/lista" className="group inline-flex w-full items-center justify-center gap-3 rounded-full bg-forest px-8 py-4 text-sm font-medium text-white shadow-xl shadow-forest/15 transition-all duration-300 hover:bg-accent-dark sm:w-auto">
+                      <EditableText contentKey="home.list.cta" fallback={listCtaLabel} tag="span" />
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:translate-x-1 transition-transform duration-300"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                    </Link>
+                    <Link to="/lista#lua-de-mel" className="group inline-flex w-full items-center justify-center gap-3 rounded-full border border-accent-mid/50 px-8 py-4 text-sm font-medium text-accent-dark transition-all duration-300 hover:border-accent hover:bg-accent-light sm:w-auto">
+                      Lua de mel
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:translate-x-1 transition-transform duration-300"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                    </Link>
+                  </div>
+                </FadeUp>
+                <FadeUp delay={0.15} className={listReversed ? 'md:order-1' : ''}>
+                  <div className="relative overflow-hidden rounded-[32px] shadow-[0_28px_70px_-30px_color-mix(in_srgb,var(--color-forest)_22%,transparent)] ring-1 ring-accent-mid/20">
+                    <div className="aspect-[4/3]">
+                      <EditableImage contentKey="home.list.image" fallback={listSectionImage} alt={copy.home.listSection.imageAlt} imgClassName="h-full w-full object-cover" />
+                    </div>
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-white/8 via-transparent to-transparent" />
+                  </div>
+                </FadeUp>
               </div>
-            </FadeUp>
-          </div>
-        </div>
-      </section>
+            </div>
+          </section>
+        )
 
-      {/* ── Informações Úteis ───────────────────────────────────────────── */}
-      <section id="transportes" style={{ order: homeSectionOrderMap.info }} className="py-18 md:py-24 bg-accent-light/25">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
-          <div className="grid items-stretch gap-10 md:grid-cols-2 md:gap-16">
-            <FadeUp className="flex min-h-full flex-col rounded-[28px] border border-accent-mid/20 bg-white/80 p-6 sm:p-7 md:rounded-none md:border-0 md:bg-transparent md:p-0">
-              <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.28em] text-accent/80"><EditableText contentKey="home.transport.tag" fallback={copy.home.transport.tag} tag="span" /></p>
-              <h2 className="mb-5 font-serif text-2xl leading-tight text-forest sm:text-[2rem]"><EditableText contentKey="home.transport.title" fallback={copy.home.transport.title} tag="span" /></h2>
-              <p className="max-w-md text-gray-500 text-sm leading-relaxed">
-                <EditableText contentKey="home.transport.description" fallback={copy.home.transport.description} tag="span" multiline />
-              </p>
-              <button
-                onClick={() => setShowBoleias(true)}
-                className="group mt-12 inline-flex w-full self-start items-center justify-center gap-2.5 rounded-full border border-accent-mid/40 bg-transparent px-6 py-3 text-sm font-medium text-accent-dark transition-all duration-300 hover:border-accent/40 hover:bg-white/60 sm:w-auto"
-              >
-                <EditableText contentKey="home.transport.cta" fallback={transportCtaLabel} tag="span" />
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                  className="group-hover:translate-x-0.5 transition-transform duration-300">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </button>
-            </FadeUp>
+        if (sectionId === 'info') return (
+          <section key="info" id="transportes" className="py-18 md:py-24 bg-accent-light/25">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
+              <div className="grid items-stretch gap-10 md:grid-cols-2 md:gap-16">
+                <FadeUp className="flex min-h-full flex-col rounded-[28px] border border-accent-mid/20 bg-white/80 p-6 sm:p-7 md:rounded-none md:border-0 md:bg-transparent md:p-0">
+                  <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.28em] text-accent/80"><EditableText contentKey="home.transport.tag" fallback={copy.home.transport.tag} tag="span" /></p>
+                  <h2 className="mb-5 font-serif text-2xl leading-tight text-forest sm:text-[2rem]"><EditableText contentKey="home.transport.title" fallback={copy.home.transport.title} tag="span" /></h2>
+                  <p className="max-w-md text-gray-500 text-sm leading-relaxed">
+                    <EditableText contentKey="home.transport.description" fallback={copy.home.transport.description} tag="span" multiline />
+                  </p>
+                  <button onClick={() => setShowBoleias(true)}
+                    className="group mt-12 inline-flex w-full self-start items-center justify-center gap-2.5 rounded-full border border-accent-mid/40 bg-transparent px-6 py-3 text-sm font-medium text-accent-dark transition-all duration-300 hover:border-accent/40 hover:bg-white/60 sm:w-auto">
+                    <EditableText contentKey="home.transport.cta" fallback={transportCtaLabel} tag="span" />
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:translate-x-0.5 transition-transform duration-300"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                  </button>
+                </FadeUp>
+                <FadeUp delay={0.08} className="flex min-h-full flex-col rounded-[28px] border border-accent-mid/20 bg-white/80 p-6 sm:p-7 md:rounded-none md:border-0 md:bg-transparent md:p-0">
+                  <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.28em] text-accent/80"><EditableText contentKey="home.allergies.tag" fallback={copy.home.allergies.tag} tag="span" /></p>
+                  <h2 className="mb-5 font-serif text-2xl leading-tight text-forest sm:text-[2rem]"><EditableText contentKey="home.allergies.title" fallback={copy.home.allergies.title} tag="span" /></h2>
+                  <p className="max-w-md text-gray-500 text-sm leading-relaxed">
+                    <EditableText contentKey="home.allergies.description" fallback={copy.home.allergies.description} tag="span" multiline />
+                  </p>
+                  <button onClick={() => setShowAlergias(true)}
+                    className="group mt-12 inline-flex w-full self-start items-center justify-center gap-2.5 rounded-full border border-accent-mid/40 bg-transparent px-6 py-3 text-sm font-medium text-accent-dark transition-all duration-300 hover:border-accent/40 hover:bg-white/60 sm:w-auto">
+                    <EditableText contentKey="home.allergies.cta" fallback={allergiesCtaLabel} tag="span" />
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:translate-x-0.5 transition-transform duration-300"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                  </button>
+                </FadeUp>
+              </div>
+            </div>
+          </section>
+        )
 
-            <FadeUp delay={0.08} className="flex min-h-full flex-col rounded-[28px] border border-accent-mid/20 bg-white/80 p-6 sm:p-7 md:rounded-none md:border-0 md:bg-transparent md:p-0">
-              <p className="mb-4 text-[11px] font-medium uppercase tracking-[0.28em] text-accent/80"><EditableText contentKey="home.allergies.tag" fallback={copy.home.allergies.tag} tag="span" /></p>
-              <h2 className="mb-5 font-serif text-2xl leading-tight text-forest sm:text-[2rem]"><EditableText contentKey="home.allergies.title" fallback={copy.home.allergies.title} tag="span" /></h2>
-              <p className="max-w-md text-gray-500 text-sm leading-relaxed">
-                <EditableText contentKey="home.allergies.description" fallback={copy.home.allergies.description} tag="span" multiline />
-              </p>
-              <button
-                onClick={() => setShowAlergias(true)}
-                className="group mt-12 inline-flex w-full self-start items-center justify-center gap-2.5 rounded-full border border-accent-mid/40 bg-transparent px-6 py-3 text-sm font-medium text-accent-dark transition-all duration-300 hover:border-accent/40 hover:bg-white/60 sm:w-auto"
-              >
-                <EditableText contentKey="home.allergies.cta" fallback={allergiesCtaLabel} tag="span" />
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                  className="group-hover:translate-x-0.5 transition-transform duration-300">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </button>
-            </FadeUp>
-          </div>
-        </div>
-      </section>
+        if (sectionId === 'presenca') return (
+          <section key="presenca" id="presenca" className="relative overflow-hidden py-20 md:py-28">
+            <div className="relative max-w-5xl mx-auto px-4 sm:px-6 md:px-8">
+              <div className="grid items-center gap-10 md:grid-cols-[0.95fr_1.05fr] md:gap-14">
+                <FadeUp className="max-w-xl">
+                  <p className="mb-4 text-xs uppercase tracking-widest text-accent"><EditableText contentKey="home.presenca.tag" fallback={copy.home.presenca.tag} tag="span" /></p>
+                  <h2 className="mb-6 font-serif text-3xl leading-tight text-forest sm:text-4xl md:text-5xl">
+                    <EditableText contentKey="home.presenca.title" fallback={copy.home.presenca.title} tag="span" />
+                  </h2>
+                  <p className="max-w-lg text-sm leading-relaxed text-gray-500">
+                    <EditableText contentKey="home.presenca.description" fallback={copy.home.presenca.description} tag="span" multiline />
+                  </p>
+                  <div className="mt-8">
+                    <button
+                      onClick={() => setShowPresenca(true)}
+                      className="group inline-flex w-full items-center justify-center gap-3 rounded-full bg-forest px-8 py-4 text-sm font-medium text-white shadow-xl shadow-forest/15 transition-all duration-300 hover:bg-accent-dark sm:w-auto"
+                    >
+                      <EditableText contentKey="home.presenca.cta" fallback={copy.home.presenca.cta} tag="span" />
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                        className="group-hover:translate-x-1 transition-transform duration-300">
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
+                </FadeUp>
+                <FadeUp delay={0.15}>
+                  <div className="relative overflow-hidden rounded-[32px] shadow-[0_28px_70px_-30px_color-mix(in_srgb,var(--color-forest)_22%,transparent)] ring-1 ring-accent-mid/20">
+                    <div className="aspect-[4/3]">
+                      <EditableImage contentKey="home.presenca.image" fallback={presencaImage} alt="Leonor e João Maria" imgClassName="h-full w-full object-cover" />
+                    </div>
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-white/8 via-transparent to-transparent" />
+                  </div>
+                </FadeUp>
+              </div>
+            </div>
+          </section>
+        )
+
+        return null
+      })}
 
       {/* ── Rodapé ───────────────────────────────────────────────────────── */}
-      </div>
       <footer className="py-10 bg-forest border-t border-white/5">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0 text-center sm:text-left">
           <p className="font-serif text-lg text-accent-mid"><EditableText contentKey="navbar.brand" fallback={copy.navbar.brand} tag="span" /></p>
@@ -982,6 +1149,9 @@ export default function Home() {
       </AnimatePresence>
       <AnimatePresence {...presenceProps({})}>
         {showAlergias && <AlergiasModal onClose={() => setShowAlergias(false)} />}
+      </AnimatePresence>
+      <AnimatePresence {...presenceProps({})}>
+        {showPresenca && <PresencaModal onClose={() => setShowPresenca(false)} />}
       </AnimatePresence>
     </div>
   )

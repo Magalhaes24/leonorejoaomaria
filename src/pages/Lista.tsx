@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, useInView } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { db, type Gift, type GiftContribution, type HoneymoonContribution } from '../lib/firebase'
+import { notifyAdmin } from '../lib/notify'
 import { collection, getDocs, addDoc, query, orderBy, serverTimestamp } from 'firebase/firestore'
 import { MOTION_EASE, MOTION_ENABLED, motionProps, presenceProps } from '../lib/motion'
 import { copy } from '../lib/i18n'
@@ -520,7 +521,6 @@ function ContributeModal({
               </svg>
             </motion.div>
             <h3 className="font-serif text-2xl text-forest mb-2">{copy.lista.contributionModal.successTitle}</h3>
-            <p className="text-gray-400 text-sm">{copy.lista.contributionModal.success(finalAmount)}</p>
           </div>
         ) : (
           <>
@@ -692,6 +692,11 @@ function HoneymoonFund() {  const [custom, setCustom] = useState('')
       await addDoc(collection(db, 'honeymoon_contributions'), {
         ...contribution,
         created_at: serverTimestamp(),
+      })
+      void notifyAdmin('Nova contribuição lua-de-mel 🌴', {
+        Nome: contribution.contributor_name,
+        Valor: `${finalAmount}€`,
+        Mensagem: contribution.message,
       })
     } catch {
       setError('Ocorreu um erro. Por favor tenta novamente.')
@@ -900,6 +905,11 @@ export default function Lista() {
     await addDoc(collection(db, 'gift_contributions'), {
       ...contribution,
       created_at: serverTimestamp(),
+    })
+    void notifyAdmin('Nova contribuição para presente 🎁', {
+      Presente: selectedGift.name,
+      Nome: name,
+      Valor: `${amount}€`,
     })
     setGifts((prev) =>
       prev.map((g) => g.id === selectedGift.id ? { ...g, contributed: g.contributed + amount } : g)
