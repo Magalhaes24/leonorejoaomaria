@@ -113,7 +113,7 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
       })
       setDirtyMap(new Map())
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Erro ao guardar. Tenta novamente.')
+      setSaveError(err instanceof Error ? err.message : 'Erro ao guardar. Tente novamente.')
     } finally {
       setIsSaving(false)
     }

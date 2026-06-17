@@ -699,7 +699,7 @@ function HoneymoonFund() {  const [custom, setCustom] = useState('')
         Mensagem: contribution.message,
       })
     } catch {
-      setError('Ocorreu um erro. Por favor tenta novamente.')
+      setError('Ocorreu um erro. Por favor tente novamente.')
       setLoading(false)
       return
     }

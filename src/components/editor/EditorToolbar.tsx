@@ -119,7 +119,7 @@ export function EditorToolbar() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (dirtyCount > 0 && !window.confirm('Tens alterações por guardar. Sair na mesma?')) return
+                    if (dirtyCount > 0 && !window.confirm('Tem alterações por guardar. Sair na mesma?')) return
                     setEditMode(false)
                     setShowReorder(false)
                     clearSaveError()
