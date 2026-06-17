@@ -670,7 +670,6 @@ function HoneymoonFund() {  const [custom, setCustom] = useState('')
   const namePlaceholder = useContent('lista.honeymoon.name_placeholder', copy.lista.honeymoon.namePlaceholder)
   const messagePlaceholder = useContent('lista.honeymoon.message_placeholder', copy.lista.honeymoon.messagePlaceholder)
   const successTitle = useContent('lista.honeymoon.success_title', copy.lista.honeymoon.successTitle)
-  const successMsgTemplate = useContent('lista.honeymoon.success_message', 'A contribuição de €{amount} significa muito para nós.')
   const submitLabel = useContent('lista.honeymoon.submit_label', copy.lista.honeymoon.submit)
   const loadingLabel = useContent('lista.honeymoon.loading_label', copy.lista.honeymoon.loading)
 
@@ -736,9 +735,6 @@ function HoneymoonFund() {  const [custom, setCustom] = useState('')
                   <div>
                     <p className="font-medium text-forest">
                       <EditableText contentKey="lista.honeymoon.success_title" fallback={successTitle} tag="span" />
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {successMsgTemplate.replace('{amount}', String(finalAmount))}
                     </p>
                   </div>
                 </motion.div>

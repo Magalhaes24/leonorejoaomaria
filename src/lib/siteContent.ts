@@ -250,7 +250,7 @@ export const CONTENT_DEFAULTS: Record<ContentKey, ContentDefault> = {
   'home.presenca.cta': { value: 'Confirmar presença', type: 'text', label: 'CTA da secção presença', section: 'Presença' },
   'home.presenca.image': { value: '', type: 'image', label: 'Imagem da secção presença', section: 'Presença' },
   'home.presenca_modal.tag': { value: 'Confirmação de presença', type: 'text', label: 'Tag do modal de presença', section: 'Presença' },
-  'home.presenca_modal.title': { value: 'Eu vou. E você?', type: 'text', label: 'Título do modal de presença', section: 'Presença' },
+  'home.presenca_modal.title': { value: 'Eu Vou e Tu?', type: 'text', label: 'Título do modal de presença', section: 'Presença' },
   'home.presenca_modal.name_label': { value: 'Nome *', type: 'text', label: 'Label do campo nome', section: 'Presença' },
   'home.presenca_modal.name_placeholder': { value: 'Nome completo', type: 'text', label: 'Placeholder do campo nome', section: 'Presença' },
   'home.presenca_modal.presenca_label': { value: 'Vou *', type: 'text', label: 'Label das opções de presença', section: 'Presença' },

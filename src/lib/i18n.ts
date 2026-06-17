@@ -125,7 +125,7 @@ export const copy = {
     },
     presencaModal: {
       tag: 'Confirmação de presença',
-      title: 'Eu vou. E você?',
+      title: 'Eu Vou e Tu?',
       nameLabel: 'Nome *',
       namePlaceholder: 'Nome completo',
       presencaLabel: 'Vou *',
@@ -145,7 +145,7 @@ export const copy = {
     },
     presenca: {
       tag: 'Presença',
-      title: 'Eu Vou. E Você?',
+      title: 'Eu Vou e Tu?',
       description: 'Confirme a sua presença para que possamos preparar tudo com cuidado.',
       cta: 'Confirmar presença',
     },
