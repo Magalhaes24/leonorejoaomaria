@@ -215,14 +215,14 @@ export const CONTENT_DEFAULTS: Record<ContentKey, ContentDefault> = {
 
   'home.boleias.intro_tag': { value: 'Transportes', type: 'text', label: 'Tag do modal boleias', section: 'Modal Boleias' },
   'home.boleias.title': { value: 'Ofereces boleia?', type: 'text', label: 'Título do modal boleias', section: 'Modal Boleias' },
-  'home.boleias.description': { value: 'Regista a tua disponibilidade para ajudar outros convidados.', type: 'text', label: 'Descrição do modal boleias', section: 'Modal Boleias' },
+  'home.boleias.description': { value: 'Regista a disponibilidade para ajudar outros convidados.', type: 'text', label: 'Descrição do modal boleias', section: 'Modal Boleias' },
   'home.boleias.name_label': { value: 'O teu nome *', type: 'text', label: 'Label nome (boleias)', section: 'Modal Boleias' },
   'home.boleias.phone_label': { value: 'Telemóvel (opcional)', type: 'text', label: 'Label telemóvel (boleias)', section: 'Modal Boleias' },
   'home.boleias.seats_label': { value: 'Lugares disponíveis *', type: 'text', label: 'Label lugares (boleias)', section: 'Modal Boleias' },
   'home.boleias.when_label': { value: 'Para quando? *', type: 'text', label: 'Label quando (boleias)', section: 'Modal Boleias' },
   'home.boleias.notes_label': { value: 'Notas (opcional)', type: 'text', label: 'Label notas (boleias)', section: 'Modal Boleias' },
   'home.boleias.success_title': { value: 'Obrigado!', type: 'text', label: 'Título de sucesso (boleias)', section: 'Modal Boleias' },
-  'home.boleias.success_message': { value: 'Registámos a tua disponibilidade.', type: 'text', label: 'Mensagem de sucesso (boleias)', section: 'Modal Boleias' },
+  'home.boleias.success_message': { value: 'Registámos a disponibilidade.', type: 'text', label: 'Mensagem de sucesso (boleias)', section: 'Modal Boleias' },
 
   'home.allergies_modal.intro_tag': { value: 'Alergias e intolerâncias', type: 'text', label: 'Tag do modal alergias', section: 'Modal Alergias' },
   'home.allergies_modal.title': { value: 'Restrições alimentares', type: 'text', label: 'Título do modal alergias', section: 'Modal Alergias' },
@@ -232,7 +232,7 @@ export const CONTENT_DEFAULTS: Record<ContentKey, ContentDefault> = {
   'home.allergies_modal.other_label': { value: 'Outra restrição', type: 'text', label: 'Label outra restrição (alergias)', section: 'Modal Alergias' },
   'home.allergies_modal.notes_label': { value: 'Notas adicionais (opcional)', type: 'text', label: 'Label notas (alergias)', section: 'Modal Alergias' },
   'home.allergies_modal.success_title': { value: 'Obrigado!', type: 'text', label: 'Título de sucesso (alergias)', section: 'Modal Alergias' },
-  'home.allergies_modal.success_message': { value: 'Registámos as tuas restrições alimentares.', type: 'text', label: 'Mensagem de sucesso (alergias)', section: 'Modal Alergias' },
+  'home.allergies_modal.success_message': { value: 'Registámos as restrições alimentares.', type: 'text', label: 'Mensagem de sucesso (alergias)', section: 'Modal Alergias' },
 
   'home.transport.tag': { value: 'Transportes', type: 'text', label: 'Tag de transportes', section: 'Transportes' },
   'home.transport.title': { value: 'Vens de carro?', type: 'text', label: 'Título dos transportes', section: 'Transportes' },
@@ -246,7 +246,7 @@ export const CONTENT_DEFAULTS: Record<ContentKey, ContentDefault> = {
 
   'home.presenca.tag': { value: 'Confirmação', type: 'text', label: 'Tag da secção presença', section: 'Presença' },
   'home.presenca.title': { value: 'Vais ao casamento?', type: 'text', label: 'Título da secção presença', section: 'Presença' },
-  'home.presenca.description': { value: 'Confirma a tua presença para que possamos preparar tudo com cuidado.', type: 'text', label: 'Descrição da secção presença', section: 'Presença' },
+  'home.presenca.description': { value: 'Confirma a presença para que possamos preparar tudo com cuidado.', type: 'text', label: 'Descrição da secção presença', section: 'Presença' },
   'home.presenca.cta': { value: 'Confirmar presença', type: 'text', label: 'CTA da secção presença', section: 'Presença' },
   'home.presenca.image': { value: '', type: 'image', label: 'Imagem da secção presença', section: 'Presença' },
   'home.presenca_modal.tag': { value: 'Confirmação de presença', type: 'text', label: 'Tag do modal de presença', section: 'Presença' },
@@ -258,7 +258,7 @@ export const CONTENT_DEFAULTS: Record<ContentKey, ContentDefault> = {
   'home.presenca_modal.submit': { value: 'Confirmar', type: 'text', label: 'Botão confirmar', section: 'Presença' },
   'home.presenca_modal.loading': { value: 'A guardar...', type: 'text', label: 'Texto de carregamento', section: 'Presença' },
   'home.presenca_modal.success_title': { value: 'Obrigado!', type: 'text', label: 'Título de sucesso', section: 'Presença' },
-  'home.presenca_modal.success_message': { value: 'Recebemos a tua confirmação.', type: 'text', label: 'Mensagem de sucesso', section: 'Presença' },
+  'home.presenca_modal.success_message': { value: 'Recebemos a confirmação.', type: 'text', label: 'Mensagem de sucesso', section: 'Presença' },
 
   'home.venue_actions.google_maps': { value: 'Google Maps', type: 'text', label: 'Botão Google Maps', section: 'Locais' },
   'home.venue_actions.apple_maps': { value: 'Mapas', type: 'text', label: 'Botão Apple Maps', section: 'Locais' },
@@ -293,7 +293,7 @@ export const CONTENT_DEFAULTS: Record<ContentKey, ContentDefault> = {
   'lista.honeymoon.title': { value: 'Ajuda-nos a voar', type: 'text', label: 'Título lua de mel', section: 'Lua de Mel' },
   'lista.honeymoon.image': { value: '', type: 'image', label: 'Imagem lua de mel', section: 'Lua de Mel' },
   'lista.honeymoon.success_title': { value: 'Muito obrigado!', type: 'text', label: 'Título de sucesso', section: 'Lua de Mel' },
-  'lista.honeymoon.success_message': { value: 'A tua contribuição de €{amount} significa muito para nós.', type: 'text', label: 'Mensagem de sucesso (usa {amount} para o valor)', section: 'Lua de Mel' },
+  'lista.honeymoon.success_message': { value: 'A contribuição de €{amount} significa muito para nós.', type: 'text', label: 'Mensagem de sucesso (usa {amount} para o valor)', section: 'Lua de Mel' },
   'lista.honeymoon.amount_label': { value: 'Escolhe um valor', type: 'text', label: 'Label do campo valor', section: 'Lua de Mel' },
   'lista.honeymoon.amount_placeholder': { value: 'Valor', type: 'text', label: 'Placeholder valor', section: 'Lua de Mel' },
   'lista.honeymoon.name_label': { value: 'O teu nome *', type: 'text', label: 'Label do campo nome', section: 'Lua de Mel' },
