@@ -786,6 +786,8 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
   const [presentesView, setPresentesView] = useState<'cards' | 'tabela' | 'grupos'>('grupos')
   const [honeymoonView, setHoneymoonView] = useState<'cards' | 'tabela' | 'grupos'>('tabela')
   const [honeymoonCols, setHoneymoonCols] = useState<1 | 3 | 6>(3)
+  const [deleteHoneymoonId, setDeleteHoneymoonId] = useState<string | null>(null)
+  const [deletingHoneymoon, setDeletingHoneymoon] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editGift, setEditGift] = useState<Gift | null>(null)
@@ -908,6 +910,31 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
     }
     setDeletingContribution(false)
   }
+
+  const handleDeleteHoneymoon = async () => {
+    if (!deleteHoneymoonId) return
+    setDeletingHoneymoon(true)
+    setActionError('')
+    const currentDeleteId = deleteHoneymoonId
+    try {
+      await deleteDoc(doc(db, 'honeymoon_contributions', currentDeleteId))
+      setHoneymoonContribs((prev) => prev.filter((c) => c.id !== currentDeleteId))
+      setDeleteHoneymoonId(null)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Erro ao eliminar.')
+    }
+    setDeletingHoneymoon(false)
+  }
+
+  const honeymoonDeleteBtn = (c: HoneymoonRow) =>
+    deleteHoneymoonId === c.id ? (
+      <span className="inline-flex items-center gap-1">
+        <button onClick={handleDeleteHoneymoon} disabled={deletingHoneymoon} className="rounded-lg bg-red-500 px-2 py-1 text-[11px] font-medium text-white hover:bg-red-600 disabled:opacity-50">{deletingHoneymoon ? '…' : copy.admin.actions.confirm}</button>
+        <button onClick={() => setDeleteHoneymoonId(null)} className="rounded-lg bg-accent-light px-2 py-1 text-[11px] font-medium text-accent-dark hover:bg-accent-mid/30">{copy.admin.actions.cancel}</button>
+      </span>
+    ) : (
+      <button onClick={() => setDeleteHoneymoonId(c.id)} className="rounded-lg bg-red-500/90 px-2 py-1 text-[11px] font-medium text-white hover:bg-red-600">{copy.admin.actions.delete}</button>
+    )
 
   const handleStartEditContribution = (contribution: ContribRow) => {
     setDeleteContributionId(null)
@@ -1163,9 +1190,12 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
   const totalContributions = gifts.reduce((sum, g) => sum + g.contributions.length, 0)
   const fullyFunded = gifts.filter((g) => g.price > 0 && g.total_contributed >= g.price).length
   const pendingGifts = Math.max(gifts.length - fullyFunded, 0)
-  const averageContribution = totalContributions > 0 ? totalContributed / totalContributions : 0
   const giftsWithContributions = gifts.filter((g) => g.contributions.length > 0)
   const totalSeatsOffered = boleias.reduce((sum, boleia) => sum + Number(boleia.lugares ?? 0), 0)
+  const totalHoneymoonRaised = honeymoonContribs.reduce((sum, c) => sum + Number(c.amount), 0)
+  const totalRaisedAll = totalContributed + totalHoneymoonRaised
+  const totalContributionsAll = totalContributions + honeymoonContribs.length
+  const averageAll = totalContributionsAll > 0 ? totalRaisedAll / totalContributionsAll : 0
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
@@ -1206,8 +1236,8 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
           <div className="mt-14 grid gap-4 md:grid-cols-3">
             <StatCard
               label={copy.admin.stats.totalRaised}
-              value={formatCurrency(totalContributed)}
-              note={copy.admin.stats.contributionsRegistered(totalContributions)}
+              value={formatCurrency(totalRaisedAll)}
+              note={copy.admin.stats.contributionsRegistered(totalContributionsAll)}
             />
             <StatCard
               label={copy.admin.stats.completedGifts}
@@ -1216,7 +1246,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
             />
             <StatCard
               label={copy.admin.stats.averageValue}
-              value={formatCurrency(averageContribution)}
+              value={formatCurrency(averageAll)}
               note={copy.admin.stats.perContribution}
             />
           </div>
@@ -1735,6 +1765,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                 <span className="rounded-full bg-forest px-3 py-1 text-xs font-semibold text-white">{formatCurrency(Number(c.amount))}</span>
                               </div>
                               {c.message && <p className="text-sm leading-relaxed text-gray-500 italic">"{c.message}"</p>}
+                              <div className="mt-3 flex justify-end">{honeymoonDeleteBtn(c)}</div>
                             </motion.div>
                           ))}
                           {honeymoonContribs.length === 0 && (
@@ -1756,6 +1787,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                   <th className="px-4 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.2em] text-accent-dark/60">Valor</th>
                                   <th className="hidden px-4 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.2em] text-accent-dark/60 sm:table-cell">Mensagem</th>
                                   <th className="hidden px-4 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.2em] text-accent-dark/60 sm:table-cell">Data</th>
+                                  <th className="px-4 py-3.5 text-right text-[11px] font-medium uppercase tracking-[0.2em] text-accent-dark/60">Ações</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-accent-mid/10">
@@ -1772,6 +1804,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                     <td className="px-4 py-3.5"><span className="rounded-full bg-forest px-3 py-1 text-xs font-medium text-white">{formatCurrency(Number(c.amount))}</span></td>
                                     <td className="hidden px-4 py-3.5 text-sm text-gray-500 sm:table-cell">{c.message ?? '—'}</td>
                                     <td className="hidden px-4 py-3.5 text-xs text-gray-400 sm:table-cell">{formatDate(c.created_at)}</td>
+                                    <td className="px-4 py-3.5 text-right">{honeymoonDeleteBtn(c)}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -1808,7 +1841,10 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                             {c.message && <p className="mt-0.5 text-xs italic text-gray-400">"{c.message}"</p>}
                                           </div>
                                         </div>
-                                        <span className="rounded-full bg-forest px-3 py-1 text-xs font-medium text-white">{formatCurrency(Number(c.amount))}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="rounded-full bg-forest px-3 py-1 text-xs font-medium text-white">{formatCurrency(Number(c.amount))}</span>
+                                          {honeymoonDeleteBtn(c)}
+                                        </div>
                                       </div>
                                     </li>
                                   ))}

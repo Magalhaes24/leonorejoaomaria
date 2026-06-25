@@ -299,7 +299,7 @@ export const CONTENT_DEFAULTS: Record<ContentKey, ContentDefault> = {
   'lista.honeymoon.name_label': { value: 'O seu nome *', type: 'text', label: 'Label do campo nome', section: 'Lua de Mel' },
   'lista.honeymoon.name_placeholder': { value: 'Nome completo', type: 'text', label: 'Placeholder nome', section: 'Lua de Mel' },
   'lista.honeymoon.message_label': { value: 'Deixe uma mensagem (opcional)', type: 'text', label: 'Label do campo mensagem', section: 'Lua de Mel' },
-  'lista.honeymoon.message_placeholder': { value: 'Desejamos-vos uma aventura maravilhosa!', type: 'text', label: 'Placeholder mensagem', section: 'Lua de Mel' },
+  'lista.honeymoon.message_placeholder': { value: 'Boa viagem!', type: 'text', label: 'Placeholder mensagem', section: 'Lua de Mel' },
   'lista.honeymoon.submit_label': { value: 'Registar contribuição', type: 'text', label: 'Texto do botão enviar', section: 'Lua de Mel' },
   'lista.honeymoon.loading_label': { value: 'A processar...', type: 'text', label: 'Texto de carregamento', section: 'Lua de Mel' },
 }

@@ -226,7 +226,7 @@ export const copy = {
       nameLabel: 'O seu nome *',
       namePlaceholder: 'Nome completo',
       messageLabel: 'Deixe uma mensagem (opcional)',
-      messagePlaceholder: 'Desejamos-vos uma aventura maravilhosa!',
+      messagePlaceholder: 'Boa viagem!',
       submit: 'Registar contribuição',
       loading: 'A processar...',
       error: 'Ocorreu um erro. Por favor, tente novamente.',
