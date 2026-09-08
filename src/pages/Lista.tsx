@@ -14,6 +14,17 @@ import { useEditor } from '../components/editor'
 type GiftWithProgress = Gift & { contributed: number }
 const DEFAULT_LISTA_SECTION_ORDER = ['gifts', 'honeymoon'] as const
 
+function isGiftComplete(gift: GiftWithProgress) {
+  return gift.price > 0 && gift.contributed >= gift.price
+}
+
+function sortGiftsByCompletion(gifts: GiftWithProgress[]) {
+  return [...gifts].sort((a, b) => {
+    const completionDifference = Number(isGiftComplete(a)) - Number(isGiftComplete(b))
+    return completionDifference || a.price - b.price
+  })
+}
+
 const DEFAULT_IBAN_VALUE = 'PT50 0023 0000 45479638251 94'
 
 function parseSectionOrder(value: string, defaults: readonly string[]) {
@@ -849,7 +860,7 @@ export default function Lista() {
         const g = { id: d.id, ...d.data() } as Gift
         return { ...g, contributed: totals[g.id] ?? 0 }
       }) as GiftWithProgress[]
-      setGifts(data)
+      setGifts(sortGiftsByCompletion(data))
     } catch {
       // silently fail — keep existing gifts
     }
@@ -907,9 +918,9 @@ export default function Lista() {
       Nome: name,
       Valor: `${amount}€`,
     })
-    setGifts((prev) =>
-      prev.map((g) => g.id === selectedGift.id ? { ...g, contributed: g.contributed + amount } : g)
-    )
+    setGifts((prev) => sortGiftsByCompletion(
+      prev.map((g) => g.id === selectedGift.id ? { ...g, contributed: g.contributed + amount } : g),
+    ))
   }
 
   return (
