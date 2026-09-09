@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Reorder, motion } from 'framer-motion'
 import { useLocation } from 'react-router-dom'
-import { useEditor } from '../../contexts/EditorContext'
+import { useEditor } from '../../contexts/useEditor'
 
 type Section = { id: string; label: string; icon: string }
 

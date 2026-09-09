@@ -893,9 +893,7 @@ export default function Lista() {
   )
   const listaSectionOrderMap = createSectionOrderMap(listaSectionOrder)
 
-  const loadData = async (showLoader = false) => {
-    if (showLoader) setLoading(true)
-
+  const loadData = async () => {
     try {
       const [giftsSnap, contribSnap] = await Promise.all([
         getDocs(query(collection(db, 'gifts'), orderBy('price', 'asc'))),
@@ -920,13 +918,18 @@ export default function Lista() {
   }
 
   useEffect(() => {
-    loadData(true)
+    const initialLoadId = window.setTimeout(() => {
+      void loadData()
+    }, 0)
 
     const intervalId = window.setInterval(() => {
-      loadData()
+      void loadData()
     }, 10000)
 
-    return () => window.clearInterval(intervalId)
+    return () => {
+      window.clearTimeout(initialLoadId)
+      window.clearInterval(intervalId)
+    }
   }, [])
 
   useEffect(() => {
@@ -945,13 +948,7 @@ export default function Lista() {
     return () => window.removeEventListener('resize', updateCollapsedGiftCount)
   }, [])
 
-  useEffect(() => {
-    if (gifts.length <= collapsedGiftCount) {
-      setShowAllGifts(true)
-    } else {
-      setShowAllGifts(false)
-    }
-  }, [gifts.length, collapsedGiftCount])
+  const areAllGiftsVisible = showAllGifts || gifts.length <= collapsedGiftCount
 
   const handleContribute = async (name: string, amount: number) => {
     if (!selectedGift) return
@@ -1037,7 +1034,7 @@ export default function Lista() {
           <>
           <motion.div layout className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             <AnimatePresence {...presenceProps({ mode: 'popLayout' as const })}>
-              {(showAllGifts ? gifts : gifts.slice(0, collapsedGiftCount)).map((gift) => (
+              {(areAllGiftsVisible ? gifts : gifts.slice(0, collapsedGiftCount)).map((gift) => (
                 <GiftCard key={gift.id} gift={gift} onContribute={setSelectedGift} />
               ))}
             </AnimatePresence>
@@ -1049,7 +1046,7 @@ export default function Lista() {
                 onClick={() => setShowAllGifts((current) => !current)}
                 className="inline-flex h-12 items-center justify-center rounded-full border border-accent-mid/35 bg-white px-6 text-sm font-medium text-accent transition-colors hover:border-accent hover:text-accent-dark"
               >
-                <EditableText contentKey={showAllGifts ? 'lista.toggle.show_less' : 'lista.toggle.show_more'} fallback={showAllGifts ? showLessLabel : showMoreLabel} tag="span" />
+                <EditableText contentKey={areAllGiftsVisible ? 'lista.toggle.show_less' : 'lista.toggle.show_more'} fallback={areAllGiftsVisible ? showLessLabel : showMoreLabel} tag="span" />
               </button>
             </FadeUp>
           )}

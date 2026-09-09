@@ -1,29 +1,13 @@
 'use client'
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { auth } from '../lib/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import type { User } from 'firebase/auth'
 import { fetchSiteContent, upsertSiteContentBatch, CONTENT_DEFAULTS, type ContentKey } from '../lib/siteContent'
-import { PALETTE_COLORS } from '../components/editor/PaletteEditor'
+import { PALETTE_COLORS } from '../components/editor/palette'
+import { EditorContext, type EditorContextValue } from './editorContextShared'
 
 const EDIT_MODE_KEY = 'editor_edit_mode'
-
-interface EditorContextValue {
-  getContent: (key: string, fallback: string) => string
-  updateContent: (key: string, value: string) => void
-  isEditMode: boolean
-  setEditMode: (v: boolean) => void
-  isAdmin: boolean
-  saveAll: () => Promise<void>
-  revertAll: () => void
-  dirtyCount: number
-  isSaving: boolean
-  saveError: string | null
-  clearSaveError: () => void
-  contentLoaded: boolean
-}
-
-const EditorContext = createContext<EditorContextValue | null>(null)
 
 export function EditorProvider({ children }: { children: React.ReactNode }) {
   const [contentMap, setContentMap] = useState<Map<string, string>>(new Map())
@@ -141,16 +125,4 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
   }
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>
-}
-
-export function useEditor(): EditorContextValue {
-  const ctx = useContext(EditorContext)
-  if (!ctx) throw new Error('useEditor must be used inside EditorProvider')
-  return ctx
-}
-
-// Convenience hook: just gets the current value of a content key
-export function useContent(key: string, fallback: string): string {
-  const { getContent } = useEditor()
-  return getContent(key, fallback)
 }

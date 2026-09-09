@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { useEditor } from '../../contexts/EditorContext'
+import { useEffect, useRef, useState } from 'react'
+import { useEditor } from '../../contexts/useEditor'
 
 type AllowedTag = 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'span' | 'div' | 'time'
 
@@ -95,7 +95,7 @@ export function EditableText({ contentKey, fallback, tag: Tag = 'span', classNam
         </div>
       )}
       <Tag
-        ref={ref as React.Ref<any>}
+        ref={(element: HTMLElement | null) => { ref.current = element }}
         contentEditable
         suppressContentEditableWarning
         spellCheck={false}

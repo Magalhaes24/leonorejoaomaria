@@ -831,9 +831,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
   const [alergiasViewCols, setAlergiasViewCols] = useState<1 | 3 | 6>(3)
   const [actionError, setActionError] = useState('')
 
-  const loadData = async (showLoader = false) => {
-    if (showLoader) setLoading(true)
-
+  const loadData = async () => {
     try {
       const [giftsSnap, contribsSnap, alergiasSnap, boleiasSnap, presencasSnap, honeymoonSnap] = await Promise.all([
         getDocs(query(collection(db, 'gifts'), orderBy('created_at', 'desc'))),
@@ -867,13 +865,18 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
   }
 
   useEffect(() => {
-    loadData(true)
+    const initialLoadId = window.setTimeout(() => {
+      void loadData()
+    }, 0)
 
     const intervalId = window.setInterval(() => {
-      loadData()
+      void loadData()
     }, 10000)
 
-    return () => window.clearInterval(intervalId)
+    return () => {
+      window.clearTimeout(initialLoadId)
+      window.clearInterval(intervalId)
+    }
   }, [])
 
   const handleDelete = async () => {
@@ -1879,7 +1882,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                 a.nome, a.restricoes.join('; '), a.notas ?? '', a.created_at ? formatDate(a.created_at) : '',
               ]), ['Nome', 'Restrições', 'Notas', 'Data'])
 
-              const AlergiaEditForm = (_: { entry: AlergiaRow }) => (
+              const AlergiaEditForm = () => (
                 <div className="space-y-4 p-5">
                   <input value={editAlergiaNome} onChange={(e) => setEditAlergiaNome(e.target.value)}
                     className="w-full rounded-full border border-accent-mid/40 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 outline-none transition-all focus:border-accent" />
@@ -1990,7 +1993,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                   <p className="mt-1 text-2xl font-semibold text-forest">{entry.restricoes.length}</p>
                                 </div>
                               </div>
-                              {editAlergiaId === entry.id ? <AlergiaEditForm entry={entry} /> : (
+                              {editAlergiaId === entry.id ? <AlergiaEditForm /> : (
                                 <div className="px-5 py-4 sm:px-6">
                                   <div className="flex flex-wrap gap-2 mb-4">
                                     {entry.restricoes.map((r) => <span key={r} className="rounded-full bg-accent-light px-3 py-1.5 text-xs font-medium text-accent-dark">{r}</span>)}
@@ -2020,7 +2023,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                   <button onClick={() => setDeleteAlergiaId(entry.id)} className="rounded-lg bg-red-50 px-2 py-1 text-[11px] font-medium text-red-500 hover:bg-red-100">{copy.admin.actions.delete}</button>
                                 )}
                               </div>
-                              {editAlergiaId === entry.id && <AlergiaEditForm entry={entry} />}
+                              {editAlergiaId === entry.id && <AlergiaEditForm />}
                             </div>
                           )}
                         </motion.div>
@@ -2057,7 +2060,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                     </div>
                                   </td>
                                 </tr>
-                                {editAlergiaId === entry.id && <tr key={`${entry.id}-edit`}><td colSpan={4} className="border-t border-accent-mid/20 bg-accent-light/10 p-0"><AlergiaEditForm entry={entry} /></td></tr>}
+                                {editAlergiaId === entry.id && <tr key={`${entry.id}-edit`}><td colSpan={4} className="border-t border-accent-mid/20 bg-accent-light/10 p-0"><AlergiaEditForm /></td></tr>}
                               </>
                             ))}
                           </tbody>
@@ -2081,7 +2084,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                             <ul className="divide-y divide-accent-mid/10">
                               {grupo.map((entry) => (
                                 <li key={entry.id}>
-                                  {editAlergiaId === entry.id ? <AlergiaEditForm entry={entry} /> : (
+                                  {editAlergiaId === entry.id ? <AlergiaEditForm /> : (
                                     <div className="flex flex-col gap-2 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
                                       <div>
                                         <p className="font-medium text-forest">{entry.nome}</p>
@@ -2117,7 +2120,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                 b.nome, tipoLabel(b), b.sentido, String(b.lugares), b.telefone ?? '', b.notas ?? '', b.created_at ? formatDate(b.created_at) : '',
               ]), ['Nome', copy.admin.rides.type, 'Sentido', 'Lugares', 'Telemóvel', 'Notas', 'Data'])
 
-              const BoleiaEditForm = (_: { entry: BoleiaRow }) => (
+              const BoleiaEditForm = () => (
                 <div className="space-y-4 p-5">
                   <input value={editBoleiaNome} onChange={(e) => setEditBoleiaNome(e.target.value)}
                     className="w-full rounded-full border border-accent-mid/40 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 outline-none transition-all focus:border-accent" />
@@ -2252,7 +2255,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                   <p className="mt-1 text-2xl font-semibold text-forest">{editBoleiaId === entry.id ? editBoleiaLugares || entry.lugares : entry.lugares}</p>
                                 </div>
                               </div>
-                              {editBoleiaId === entry.id ? <BoleiaEditForm entry={entry} /> : (
+                              {editBoleiaId === entry.id ? <BoleiaEditForm /> : (
                                 <div className="px-5 py-4 sm:px-6">
                                   {entry.notas && <p className="mb-4 text-sm leading-6 text-gray-500">{entry.notas}</p>}
                                   <BoleiaActions entry={entry} />
@@ -2276,7 +2279,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                   <><button onClick={handleDeleteBoleia} disabled={deletingBoleia} className="rounded-lg bg-red-500 px-2 py-1 text-[11px] font-medium text-white hover:bg-red-600 disabled:opacity-50">{deletingBoleia ? '…' : copy.admin.actions.confirm}</button><button onClick={() => setDeleteBoleiaId(null)} className="rounded-lg bg-accent-light px-2 py-1 text-[11px] font-medium text-accent-dark hover:bg-accent-mid/30">{copy.admin.actions.cancel}</button></>
                                 ) : <button onClick={() => setDeleteBoleiaId(entry.id)} className="rounded-lg bg-red-50 px-2 py-1 text-[11px] font-medium text-red-500 hover:bg-red-100">{copy.admin.actions.delete}</button>}
                               </div>
-                              {editBoleiaId === entry.id && <BoleiaEditForm entry={entry} />}
+                              {editBoleiaId === entry.id && <BoleiaEditForm />}
                             </div>
                           )}
                         </motion.div>
@@ -2317,7 +2320,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                     </div>
                                   </td>
                                 </tr>
-                                {editBoleiaId === entry.id && <tr key={`${entry.id}-edit`}><td colSpan={5} className="border-t border-accent-mid/20 bg-accent-light/10 p-0"><BoleiaEditForm entry={entry} /></td></tr>}
+                                {editBoleiaId === entry.id && <tr key={`${entry.id}-edit`}><td colSpan={5} className="border-t border-accent-mid/20 bg-accent-light/10 p-0"><BoleiaEditForm /></td></tr>}
                               </>
                             ))}
                           </tbody>
@@ -2344,7 +2347,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                             <ul className="divide-y divide-accent-mid/10">
                               {grupo.map((entry) => (
                                 <li key={entry.id}>
-                                  {editBoleiaId === entry.id ? <BoleiaEditForm entry={entry} /> : (
+                                  {editBoleiaId === entry.id ? <BoleiaEditForm /> : (
                                     <div className="flex flex-col gap-2 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
                                       <div>
                                         <div className="flex items-center gap-3">

@@ -6,7 +6,8 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // VS Code Local History snapshots are not application source files.
+  globalIgnores(['dist', '.history']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

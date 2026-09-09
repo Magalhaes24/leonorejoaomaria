@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEditor } from '../../contexts/EditorContext'
+import { useEditor } from '../../contexts/useEditor'
 import { SectionReorderPanel } from './SectionReorderPanel'
 import { PaletteEditor } from './PaletteEditor'
 

@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { storage } from '../../lib/firebase'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { useEditor } from '../../contexts/EditorContext'
+import { useEditor } from '../../contexts/useEditor'
 
 interface EditableImageProps {
   contentKey: string
