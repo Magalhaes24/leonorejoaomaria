@@ -324,7 +324,6 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
                     <button key={t.value} type="button" onClick={() => setTipo(t.value as 'oferece' | 'precisa')}
                       className={`rounded-xl border px-4 py-3 text-left transition-all ${tipo === t.value ? 'border-accent bg-accent-light/50' : 'border-accent-mid/40 hover:border-accent/40'}`}>
                       <span className="block text-sm font-medium text-gray-800">{t.label}</span>
-                      <span className="block text-[11px] text-gray-400 mt-0.5">{t.hint}</span>
                     </button>
                   ))}
                 </div>

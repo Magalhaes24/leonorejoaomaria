@@ -84,8 +84,8 @@ export const copy = {
       ],
       commonRestrictions: ['Glúten', 'Lactose', 'Frutos secos', 'Marisco', 'Ovo', 'Vegetariano', 'Vegan'],
       tipos: [
-        { value: 'oferece', label: 'Ofereço boleia', hint: 'Tenho lugares no carro' },
-        { value: 'precisa', label: 'Preciso de boleia', hint: 'Procuro quem me leve' },
+        { value: 'oferece', label: 'Ofereço boleia'},
+        { value: 'precisa', label: 'Preciso de boleia'},
       ],
       modal: {
         successTitle: 'Obrigado!',
