@@ -813,6 +813,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
   const [editBoleiaTelefone, setEditBoleiaTelefone] = useState('')
   const [editBoleiaLugares, setEditBoleiaLugares] = useState('')
   const [editBoleiaSentido, setEditBoleiaSentido] = useState('')
+  const [editBoleiaTipo, setEditBoleiaTipo] = useState<'oferece' | 'precisa'>('oferece')
   const [editBoleiaNotas, setEditBoleiaNotas] = useState('')
   const [savingBoleia, setSavingBoleia] = useState(false)
   const [deletePresencaId, setDeletePresencaId] = useState<string | null>(null)
@@ -1044,6 +1045,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
     setEditBoleiaTelefone(entry.telefone ?? '')
     setEditBoleiaLugares(String(entry.lugares ?? 1))
     setEditBoleiaSentido(entry.sentido)
+    setEditBoleiaTipo(entry.tipo === 'precisa' ? 'precisa' : 'oferece')
     setEditBoleiaNotas(entry.notas ?? '')
   }
 
@@ -1053,6 +1055,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
     setEditBoleiaTelefone('')
     setEditBoleiaLugares('')
     setEditBoleiaSentido('')
+    setEditBoleiaTipo('oferece')
     setEditBoleiaNotas('')
   }
 
@@ -1065,12 +1068,14 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
     const updatedTelefone = editBoleiaTelefone.trim() || null
     const updatedLugares = Number(editBoleiaLugares)
     const updatedSentido = editBoleiaSentido.trim()
+    const updatedTipo = editBoleiaTipo
     const updatedNotas = editBoleiaNotas.trim() || null
 
     try {
       await updateDoc(doc(db, 'boleias', editBoleiaId), {
         nome: updatedNome,
         telefone: updatedTelefone,
+        tipo: updatedTipo,
         lugares: updatedLugares,
         sentido: updatedSentido,
         notas: updatedNotas,
@@ -1082,6 +1087,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                 ...entry,
                 nome: updatedNome,
                 telefone: updatedTelefone,
+                tipo: updatedTipo,
                 lugares: updatedLugares,
                 sentido: updatedSentido,
                 notas: updatedNotas,
@@ -1191,7 +1197,10 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
   const fullyFunded = gifts.filter((g) => g.price > 0 && g.total_contributed >= g.price).length
   const pendingGifts = Math.max(gifts.length - fullyFunded, 0)
   const giftsWithContributions = gifts.filter((g) => g.contributions.length > 0)
-  const totalSeatsOffered = boleias.reduce((sum, boleia) => sum + Number(boleia.lugares ?? 0), 0)
+  const boleiasOferta = boleias.filter((b) => b.tipo !== 'precisa')
+  const boleiasPedido = boleias.filter((b) => b.tipo === 'precisa')
+  const totalSeatsOffered = boleiasOferta.reduce((sum, boleia) => sum + Number(boleia.lugares ?? 0), 0)
+  const totalSeatsNeeded = boleiasPedido.reduce((sum, boleia) => sum + Number(boleia.lugares ?? 0), 0)
   const totalHoneymoonRaised = honeymoonContribs.reduce((sum, c) => sum + Number(c.amount), 0)
   const totalRaisedAll = totalContributed + totalHoneymoonRaised
   const totalContributionsAll = totalContributions + honeymoonContribs.length
@@ -1321,7 +1330,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
               null
             ) : (
               <p className="text-sm text-gray-500">
-                {copy.admin.summary.rides(boleias.length, totalSeatsOffered)}
+                {copy.admin.summary.rides(boleiasOferta.length, totalSeatsOffered, boleiasPedido.length, totalSeatsNeeded)}
               </p>
             )}
           </div>
@@ -1677,7 +1686,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                         </td>
                                       </tr>
                                       {editContributionId === c.id && gift && (
-                                        <tr key={`${c.id}-edit`}><td colSpan={5} className="border-t border-accent-mid/20 bg-accent-light/10 p-0">
+                                        <tr key={`${c.id}-edit`}><td colSpan={6} className="border-t border-accent-mid/20 bg-accent-light/10 p-0">
                                           <ContribRow c={c} giftId={gift.id} />
                                         </td></tr>
                                       )}
@@ -2095,16 +2104,31 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
 
           ) : tab === 'boleias' ? (
             (() => {
-              const totalLugares = boleias.reduce((s, b) => s + Number(b.lugares ?? 0), 0)
+              const totalLugares = boleiasOferta.reduce((s, b) => s + Number(b.lugares ?? 0), 0)
+              const totalLugaresPedidos = boleiasPedido.reduce((s, b) => s + Number(b.lugares ?? 0), 0)
               const sentidos = [...new Set(boleias.map((b) => b.sentido))].sort()
+              const tipoLabel = (b: BoleiaRow) => (b.tipo === 'precisa' ? copy.admin.rides.typeNeed : copy.admin.rides.typeOffer)
+              const TipoBadge = ({ entry }: { entry: BoleiaRow }) => (
+                <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${entry.tipo === 'precisa' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                  {tipoLabel(entry)}
+                </span>
+              )
               const handleExportBoleias = () => exportCsv('boleias', boleias.map((b) => [
-                b.nome, b.sentido, String(b.lugares), b.telefone ?? '', b.notas ?? '', b.created_at ? formatDate(b.created_at) : '',
-              ]), ['Nome', 'Sentido', 'Lugares', 'Telemóvel', 'Notas', 'Data'])
+                b.nome, tipoLabel(b), b.sentido, String(b.lugares), b.telefone ?? '', b.notas ?? '', b.created_at ? formatDate(b.created_at) : '',
+              ]), ['Nome', copy.admin.rides.type, 'Sentido', 'Lugares', 'Telemóvel', 'Notas', 'Data'])
 
               const BoleiaEditForm = (_: { entry: BoleiaRow }) => (
                 <div className="space-y-4 p-5">
                   <input value={editBoleiaNome} onChange={(e) => setEditBoleiaNome(e.target.value)}
                     className="w-full rounded-full border border-accent-mid/40 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 outline-none transition-all focus:border-accent" />
+                  <div className="flex gap-2">
+                    {(['oferece', 'precisa'] as const).map((t) => (
+                      <button key={t} type="button" onClick={() => setEditBoleiaTipo(t)}
+                        className={`rounded-full px-4 py-2 text-xs font-medium transition-all ${editBoleiaTipo === t ? 'bg-forest text-white' : 'bg-accent-light text-accent-dark hover:bg-accent-mid/30'}`}>
+                        {t === 'precisa' ? copy.admin.rides.typeNeed : copy.admin.rides.typeOffer}
+                      </button>
+                    ))}
+                  </div>
                   <div className="grid gap-3 sm:grid-cols-3">
                     <input value={editBoleiaSentido} onChange={(e) => setEditBoleiaSentido(e.target.value)} placeholder={copy.admin.rides.editPlaceholder.route}
                       className="rounded-full border border-accent-mid/40 bg-white px-4 py-2.5 text-sm text-gray-700 outline-none transition-all focus:border-accent" />
@@ -2162,12 +2186,20 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex flex-wrap gap-3">
                       <div className="rounded-2xl border border-accent-mid/30 bg-white px-4 py-3">
-                        <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-accent-dark/70">Registos</p>
-                        <p className="mt-1 font-serif text-2xl text-forest">{boleias.length}</p>
+                        <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-accent-dark/70">{copy.admin.rides.offers}</p>
+                        <p className="mt-1 font-serif text-2xl text-forest">{boleiasOferta.length}</p>
                       </div>
                       <div className="rounded-2xl border border-accent-mid/30 bg-accent-light/40 px-4 py-3">
-                        <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-accent-dark/70">{copy.admin.rides.seats}</p>
+                        <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-accent-dark/70">{copy.admin.rides.seatsOffered}</p>
                         <p className="mt-1 font-serif text-2xl text-forest">{totalLugares}</p>
+                      </div>
+                      <div className="rounded-2xl border border-accent-mid/30 bg-white px-4 py-3">
+                        <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-accent-dark/70">{copy.admin.rides.needs}</p>
+                        <p className="mt-1 font-serif text-2xl text-forest">{boleiasPedido.length}</p>
+                      </div>
+                      <div className="rounded-2xl border border-accent-mid/30 bg-accent-light/40 px-4 py-3">
+                        <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-accent-dark/70">{copy.admin.rides.seatsNeeded}</p>
+                        <p className="mt-1 font-serif text-2xl text-forest">{totalLugaresPedidos}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 self-start">
@@ -2208,7 +2240,8 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                               <div className="flex items-center justify-between gap-4 border-b border-accent-mid/20 bg-accent-light/20 px-5 py-5 sm:px-6">
                                 <div>
                                   <p className="font-serif text-2xl text-forest">{entry.nome}</p>
-                                  <div className="mt-2 flex flex-wrap gap-2 text-sm text-gray-500">
+                                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+                                    <TipoBadge entry={entry} />
                                     <span>{entry.sentido}</span>
                                     {entry.telefone && <span>{entry.telefone}</span>}
                                     <span>{formatDate(entry.created_at)}</span>
@@ -2230,6 +2263,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                             <div className="flex flex-col gap-2 p-4">
                               <p className={`font-serif text-forest leading-tight ${boleiasCols === 6 ? 'text-base' : 'text-lg'}`}>{entry.nome}</p>
                               <div className="flex flex-wrap gap-1 text-xs text-gray-500">
+                                <TipoBadge entry={entry} />
                                 <span className="rounded-full bg-accent-light px-2 py-0.5 text-[11px] font-medium text-accent-dark">{entry.sentido}</span>
                                 <span className="rounded-full bg-accent-light/60 px-2 py-0.5 text-[11px] font-medium text-forest">{entry.lugares} lugares</span>
                               </div>
@@ -2258,6 +2292,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                           <thead>
                             <tr className="border-b border-accent-mid/20 bg-accent-light/30">
                               <th className="px-5 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.2em] text-accent-dark/60">Nome</th>
+                              <th className="px-4 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.2em] text-accent-dark/60">{copy.admin.rides.type}</th>
                               <th className="px-4 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.2em] text-accent-dark/60">Sentido</th>
                               <th className="px-4 py-3.5 text-center text-[11px] font-medium uppercase tracking-[0.2em] text-accent-dark/60">{copy.admin.rides.seats}</th>
                               <th className="hidden px-4 py-3.5 text-left text-[11px] font-medium uppercase tracking-[0.2em] text-accent-dark/60 sm:table-cell">Telemóvel</th>
@@ -2269,6 +2304,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                               <>
                                 <tr key={entry.id} className={`transition-colors hover:bg-accent-light/10 ${editBoleiaId === entry.id ? 'bg-accent-light/20' : ''}`}>
                                   <td className="px-5 py-3.5 font-medium text-forest">{entry.nome}</td>
+                                  <td className="px-4 py-3.5"><TipoBadge entry={entry} /></td>
                                   <td className="px-4 py-3.5 text-gray-500">{entry.sentido}</td>
                                   <td className="px-4 py-3.5 text-center font-semibold text-forest">{editBoleiaId === entry.id ? editBoleiaLugares || entry.lugares : entry.lugares}</td>
                                   <td className="hidden px-4 py-3.5 text-xs text-gray-400 sm:table-cell">{entry.telefone ?? '—'}</td>
@@ -2296,13 +2332,14 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                         <div className="rounded-[30px] border border-dashed border-accent-mid bg-white/70 px-6 py-20 text-center text-sm text-gray-400">{copy.admin.rides.empty}</div>
                       ) : sentidos.map((sentido) => {
                         const grupo = boleias.filter((b) => b.sentido === sentido)
-                        const lugaresGrupo = grupo.reduce((s, b) => s + Number(b.lugares ?? 0), 0)
+                        const lugaresGrupo = grupo.filter((b) => b.tipo !== 'precisa').reduce((s, b) => s + Number(b.lugares ?? 0), 0)
+                        const lugaresGrupoPedidos = grupo.filter((b) => b.tipo === 'precisa').reduce((s, b) => s + Number(b.lugares ?? 0), 0)
                         return (
                           <div key={sentido} className="overflow-hidden rounded-3xl border border-accent-mid/40 bg-white shadow-sm">
                             <div className="flex items-center gap-3 border-b border-accent-mid/20 bg-accent-light/20 px-5 py-4">
                               <span className="rounded-full bg-accent-light px-3 py-1 text-xs font-medium text-accent-dark">{sentido}</span>
                               <span className="font-serif text-lg text-forest">{grupo.length} reg.</span>
-                              <span className="text-sm text-gray-500">· {lugaresGrupo} {copy.admin.rides.seats.toLowerCase()}</span>
+                              <span className="text-sm text-gray-500">· {lugaresGrupo} {copy.admin.rides.seatsOffered.toLowerCase()} · {lugaresGrupoPedidos} {copy.admin.rides.seatsNeeded.toLowerCase()}</span>
                             </div>
                             <ul className="divide-y divide-accent-mid/10">
                               {grupo.map((entry) => (
@@ -2312,6 +2349,7 @@ function AdminPanel({ onLogout }: { onLogout: () => void }) {
                                       <div>
                                         <div className="flex items-center gap-3">
                                           <p className="font-medium text-forest">{entry.nome}</p>
+                                          <TipoBadge entry={entry} />
                                           <span className="rounded-full bg-accent-light/60 px-2.5 py-0.5 text-xs font-medium text-forest">{entry.lugares} lugares</span>
                                         </div>
                                         {entry.telefone && <p className="mt-0.5 text-xs text-gray-400">{entry.telefone}</p>}

@@ -52,6 +52,7 @@ export interface Boleia {
   id?: string
   nome: string
   telefone?: string | null
+  tipo?: 'oferece' | 'precisa'
   lugares: number
   sentido: string
   notas?: string | null

@@ -227,8 +227,10 @@ function Modal({ onClose, children }: { onClose: () => void; children: React.Rea
 
 // ─── Modal: Boleias ──────────────────────────────────────────────────────────
 const SENTIDOS = copy.home.boleias.options
+const TIPOS_BOLEIA = copy.home.boleias.tipos
 
 function BoleiasModal({ onClose }: { onClose: () => void }) {
+  const [tipo, setTipo] = useState<'oferece' | 'precisa'>('oferece')
   const [nome, setNome] = useState('')
   const [telefone, setTelefone] = useState('')
   const [lugares, setLugares] = useState(1)
@@ -243,17 +245,29 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
   const loadingLabel = useContent('home.boleias.loading', copy.home.boleias.modal.loading)
   const namePlaceholder = useContent('home.boleias.name_placeholder', copy.home.boleias.modal.namePlaceholder)
   const phonePlaceholder = useContent('home.boleias.phone_placeholder', copy.home.boleias.modal.phonePlaceholder)
-  const notesPlaceholder = useContent('home.boleias.notes_placeholder', copy.home.boleias.modal.notesPlaceholder)
+  const notesPlaceholderOffer = useContent('home.boleias.notes_placeholder', copy.home.boleias.modal.notesPlaceholder)
+  const notesPlaceholderNeed = useContent('home.boleias.notes_placeholder_need', copy.home.boleias.modal.notesPlaceholderNeed)
   const introTag = useContent('home.boleias.intro_tag', copy.home.boleias.modal.introTag)
-  const title = useContent('home.boleias.title', copy.home.boleias.modal.title)
-  const description = useContent('home.boleias.description', copy.home.boleias.modal.description)
+  const titleOffer = useContent('home.boleias.title', copy.home.boleias.modal.title)
+  const titleNeed = useContent('home.boleias.title_need', copy.home.boleias.modal.titleNeed)
+  const descriptionOffer = useContent('home.boleias.description', copy.home.boleias.modal.description)
+  const descriptionNeed = useContent('home.boleias.description_need', copy.home.boleias.modal.descriptionNeed)
   const nameLabel = useContent('home.boleias.name_label', copy.home.boleias.modal.nameLabel)
   const phoneLabel = useContent('home.boleias.phone_label', copy.home.boleias.modal.phoneLabel)
-  const seatsLabel = useContent('home.boleias.seats_label', copy.home.boleias.modal.seatsLabel)
+  const seatsLabelOffer = useContent('home.boleias.seats_label', copy.home.boleias.modal.seatsLabel)
+  const seatsLabelNeed = useContent('home.boleias.seats_label_need', copy.home.boleias.modal.seatsLabelNeed)
   const whenLabel = useContent('home.boleias.when_label', copy.home.boleias.modal.whenLabel)
   const notesLabel = useContent('home.boleias.notes_label', copy.home.boleias.modal.notesLabel)
   const successTitle = useContent('home.boleias.success_title', copy.home.boleias.modal.successTitle)
-  const successMessage = useContent('home.boleias.success_message', copy.home.boleias.modal.successMessage)
+  const successMessageOffer = useContent('home.boleias.success_message', copy.home.boleias.modal.successMessage)
+  const successMessageNeed = useContent('home.boleias.success_message_need', copy.home.boleias.modal.successMessageNeed)
+
+  const isNeed = tipo === 'precisa'
+  const title = isNeed ? titleNeed : titleOffer
+  const description = isNeed ? descriptionNeed : descriptionOffer
+  const seatsLabel = isNeed ? seatsLabelNeed : seatsLabelOffer
+  const notesPlaceholder = isNeed ? notesPlaceholderNeed : notesPlaceholderOffer
+  const successMessage = isNeed ? successMessageNeed : successMessageOffer
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -263,7 +277,7 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
     try {
       await addDoc(collection(db, 'boleias'), {
         nome: nome.trim(), telefone: telefone.trim() || null,
-        lugares, sentido, notas: notas.trim() || null,
+        tipo, lugares, sentido, notas: notas.trim() || null,
         created_at: serverTimestamp(),
       })
     } catch {
@@ -294,16 +308,27 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
               </svg>
             </motion.div>
             <h3 className="font-serif text-2xl text-forest mb-2"><EditableText contentKey="home.boleias.success_title" fallback={successTitle} tag="span" /></h3>
-            <p className="text-gray-400 text-sm"><EditableText contentKey="home.boleias.success_message" fallback={successMessage} tag="span" /></p>
+            <p className="text-gray-400 text-sm"><EditableText contentKey={isNeed ? 'home.boleias.success_message_need' : 'home.boleias.success_message'} fallback={successMessage} tag="span" /></p>
             <button onClick={onClose} className="mt-6 text-sm text-accent font-medium hover:text-accent-dark transition-colors"><EditableText contentKey="home.boleias.close" fallback={closeLabel} tag="span" /></button>
           </div>
         ) : (
           <>
             <p className="text-xs uppercase tracking-widest text-accent mb-2"><EditableText contentKey="home.boleias.intro_tag" fallback={introTag} tag="span" /></p>
-            <h3 className="font-serif text-2xl text-forest mb-1"><EditableText contentKey="home.boleias.title" fallback={title} tag="span" /></h3>
-            <p className="text-gray-400 text-sm mb-6"><EditableText contentKey="home.boleias.description" fallback={description} tag="span" multiline /></p>
+            <h3 className="font-serif text-2xl text-forest mb-1"><EditableText contentKey={isNeed ? 'home.boleias.title_need' : 'home.boleias.title'} fallback={title} tag="span" /></h3>
+            <p className="text-gray-400 text-sm mb-6"><EditableText contentKey={isNeed ? 'home.boleias.description_need' : 'home.boleias.description'} fallback={description} tag="span" multiline /></p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <div className="grid grid-cols-2 gap-2">
+                  {TIPOS_BOLEIA.map(t => (
+                    <button key={t.value} type="button" onClick={() => setTipo(t.value as 'oferece' | 'precisa')}
+                      className={`rounded-xl border px-4 py-3 text-left transition-all ${tipo === t.value ? 'border-accent bg-accent-light/50' : 'border-accent-mid/40 hover:border-accent/40'}`}>
+                      <span className="block text-sm font-medium text-gray-800">{t.label}</span>
+                      <span className="block text-[11px] text-gray-400 mt-0.5">{t.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div>
                 <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2"><EditableText contentKey="home.boleias.name_label" fallback={nameLabel} tag="span" /></label>
                 <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder={namePlaceholder}
@@ -315,7 +340,7 @@ function BoleiasModal({ onClose }: { onClose: () => void }) {
                   className="w-full bg-accent-light/40 border border-accent-mid/40 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 transition-all" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2"><EditableText contentKey="home.boleias.seats_label" fallback={seatsLabel} tag="span" /></label>
+                <label className="text-xs text-gray-500 uppercase tracking-wider block mb-2"><EditableText contentKey={isNeed ? 'home.boleias.seats_label_need' : 'home.boleias.seats_label'} fallback={seatsLabel} tag="span" /></label>
                 <div className="flex items-center gap-3">
                   <button type="button" onClick={() => setLugares(l => Math.max(1, l - 1))}
                     className="w-10 h-10 rounded-full border border-accent-mid/60 text-accent-dark font-medium hover:bg-accent-light transition-colors">−</button>

@@ -397,10 +397,11 @@ function GiftCard({ gift, onContribute }: { gift: GiftWithProgress; onContribute
         whileHover: { y: -3 },
         transition: { duration: 0.55, ease: MOTION_EASE },
       })}
+      onClick={!isFull ? () => onContribute(gift) : undefined}
       className={`group bg-white rounded-2xl border overflow-hidden flex flex-col transition-all duration-500 ${
         isFull
           ? 'border-accent-mid/20'
-          : 'border-accent-mid/30 hover:border-accent/50 hover:shadow-xl hover:shadow-accent/10'
+          : 'border-accent-mid/30 hover:border-accent/50 hover:shadow-xl hover:shadow-accent/10 cursor-pointer'
       }`}
     >
       {/* Imagem */}
@@ -445,7 +446,7 @@ function GiftCard({ gift, onContribute }: { gift: GiftWithProgress; onContribute
 
         {!isFull && (
           <button
-            onClick={() => onContribute(gift)}
+            onClick={(e) => { e.stopPropagation(); onContribute(gift) }}
             className="w-full text-xs font-medium text-white bg-accent py-2.5 rounded-full hover:bg-accent-dark transition-all duration-300 mt-1 cursor-pointer"
           >
             <EditableText contentKey="lista.gift.contribute" fallback={contributeLabel} tag="span" />
@@ -471,6 +472,7 @@ function ContributeModal({
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const amountPlaceholder = useContent('lista.contribution.amount_placeholder', copy.lista.contributionModal.amountPlaceholder)
   const namePlaceholder = useContent('lista.contribution.name_placeholder', copy.lista.contributionModal.namePlaceholder)
   const cancelLabel = useContent('lista.contribution.cancel', copy.lista.contributionModal.cancel)
@@ -537,18 +539,25 @@ function ContributeModal({
           <>
             <div className="mb-5 overflow-hidden rounded-[28px] border border-accent-mid/20 bg-accent-light/20">
 
-              <div className="aspect-[16/9] w-full overflow-hidden bg-accent-light/40">
-
+              <div
+                className={`aspect-[16/9] w-full overflow-hidden bg-accent-light/40 relative${gift.image_url ? ' cursor-zoom-in group' : ''}`}
+                onClick={gift.image_url ? () => setLightboxOpen(true) : undefined}
+              >
                 {gift.image_url ? (
-
-                  <img src={gift.image_url} alt={gift.name} className="h-full w-full object-cover" />
-
+                  <>
+                    <img src={gift.image_url} alt={gift.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                    <div className="absolute bottom-3 right-3 pointer-events-none">
+                      <span className="flex items-center gap-1 bg-forest/60 text-white text-xs px-2.5 py-1 rounded-full backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                        </svg>
+                        Ver fotografia
+                      </span>
+                    </div>
+                  </>
                 ) : (
-
                   <GiftIcon />
-
                 )}
-
               </div>
 
             </div>
@@ -666,6 +675,48 @@ function ContributeModal({
           </>
         )}
       </motion.div>
+
+      {/* ── Lightbox de imagem ── */}
+      <AnimatePresence>
+        {lightboxOpen && (
+          <motion.div
+            {...motionProps({
+              initial: { opacity: 0 },
+              animate: { opacity: 1 },
+              exit: { opacity: 0 },
+              transition: { duration: 0.2 },
+            })}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-forest/85 backdrop-blur-md p-4 md:p-10"
+            onClick={(e) => { e.stopPropagation(); setLightboxOpen(false) }}
+          >
+            <motion.div
+              {...motionProps({
+                initial: { scale: 0.93, opacity: 0 },
+                animate: { scale: 1, opacity: 1 },
+                exit: { scale: 0.93, opacity: 0 },
+                transition: { duration: 0.25, ease: MOTION_EASE },
+              })}
+              className="relative max-w-3xl w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={gift.image_url!}
+                alt={gift.name}
+                className="w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl shadow-forest/40"
+              />
+              <button
+                type="button"
+                onClick={() => setLightboxOpen(false)}
+                className="absolute top-3 right-3 w-9 h-9 flex items-center justify-center rounded-full bg-forest/70 text-white hover:bg-forest transition-colors backdrop-blur-sm"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
