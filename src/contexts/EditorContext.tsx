@@ -20,12 +20,16 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
   const originalMapRef = useRef<Map<string, string>>(new Map())
 
   // Load content from Supabase on mount
+  // Safety net: if the DB is slow/unreachable, show defaults after 5s
   useEffect(() => {
+    const timeout = setTimeout(() => setContentLoaded(true), 5000)
     fetchSiteContent().then((map) => {
+      clearTimeout(timeout)
       setContentMap(map)
       originalMapRef.current = new Map(map)
       setContentLoaded(true)
     })
+    return () => clearTimeout(timeout)
   }, [])
 
   // Apply palette colors as CSS variables whenever content or dirty map changes

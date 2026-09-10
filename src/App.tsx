@@ -9,6 +9,7 @@ import Admin from './pages/Admin'
 import { MOTION_EASE, MOTION_ENABLED, motionProps, presenceProps } from './lib/motion'
 import { copy } from './lib/i18n'
 import { EditorProvider } from './contexts/EditorContext'
+import { useEditor } from './contexts/useEditor'
 import { EditorToolbar } from './components/editor'
 
 function PageTransition({ children }: { children: React.ReactNode }) {
@@ -111,12 +112,27 @@ function AppInner() {
   )
 }
 
+// Hold the site until DB content is loaded so defaults never flash
+function ContentGate({ children }: { children: React.ReactNode }) {
+  const { contentLoaded } = useEditor()
+  if (!contentLoaded) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center" aria-busy="true" aria-label="A carregar">
+        <span className="animate-pulse text-2xl tracking-wide text-accent">{copy.navbar.brand}</span>
+      </div>
+    )
+  }
+  return <>{children}</>
+}
+
 export default function App() {
   return (
     <EditorProvider>
-      <BrowserRouter>
-        <AppInner />
-      </BrowserRouter>
+      <ContentGate>
+        <BrowserRouter>
+          <AppInner />
+        </BrowserRouter>
+      </ContentGate>
     </EditorProvider>
   )
 }
