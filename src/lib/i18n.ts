@@ -12,7 +12,7 @@ export const copy = {
     coupleName: 'Leonor e João Maria',
     locations: {
       churchLabel: 'Igreja',
-      churchName: 'Igreja Matriz da Azambuja',
+      churchName: 'Igreja de São Sebastião da Pedreira',
       cocktailLabel: 'Cocktail',
       cocktailName: 'Herdade do Crescido',
     },
@@ -26,13 +26,13 @@ export const copy = {
     venues: {
       ceremony: {
         sectionLabel: '19 de setembro · 15h00',
-        name: 'Igreja Matriz da Azambuja',
-        address: 'Largo da Igreja, 2050-326 Azambuja',
+        name: 'Igreja de São Sebastião da Pedreira',
+        address: 'Igreja de São Sebastião da Pedreira, Lisboa',
         time: '15h00',
-        mapQuery: 'Igreja Matriz da Azambuja, Largo da Igreja, 2050-326 Azambuja, Portugal',
-        googleMapsUrl: 'https://www.google.com/maps/dir/?api=1&destination=Igreja+Matriz+da+Azambuja,+2050-326+Azambuja,+Portugal',
-        appleMapsUrl: 'https://maps.apple.com/?daddr=Igreja+Matriz+da+Azambuja,+Azambuja,+Portugal',
-        wazeUrl: 'https://waze.com/ul?q=Igreja+Matriz+da+Azambuja+Azambuja+Portugal&navigate=yes',
+        mapQuery: 'Igreja de São Sebastião da Pedreira, Lisboa, Portugal',
+        googleMapsUrl: 'https://www.google.com/maps/dir/?api=1&destination=Igreja+de+S%C3%A3o+Sebasti%C3%A3o+da+Pedreira,+Lisboa,+Portugal',
+        appleMapsUrl: 'https://maps.apple.com/?daddr=Igreja+de+S%C3%A3o+Sebasti%C3%A3o+da+Pedreira,+Lisboa,+Portugal',
+        wazeUrl: 'https://waze.com/ul?q=Igreja+de+S%C3%A3o+Sebasti%C3%A3o+da+Pedreira+Lisboa+Portugal&navigate=yes',
       },
       cocktail: {
         sectionLabel: '19 de setembro · 18h00',

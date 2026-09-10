@@ -39,7 +39,7 @@
 
   <!-- Church -->
   <text x="420" y="520" text-anchor="middle" font-family="'Manrope', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="14" font-weight="400" fill="#5a9e8f" letter-spacing="5">IGREJA</text>
-  <text x="420" y="555" text-anchor="middle" font-family="'Manrope', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="21" font-weight="300" fill="#2D6B5E">Igreja Matriz da Azambuja</text>
+  <text x="420" y="555" text-anchor="middle" font-family="'Manrope', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="19" font-weight="300" fill="#2D6B5E">Igreja de São Sebastião da Pedreira</text>
 
   <!-- Vertical divider -->
   <line x1="600" y1="500" x2="600" y2="570" stroke="url(#av-w)" stroke-width="0.5"/>
